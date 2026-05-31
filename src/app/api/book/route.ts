@@ -22,27 +22,6 @@ interface RawBookingData {
 
 // Helper to write booking securely to local JSON file
 async function saveBookingToDatabase(bookingData: RawBookingData) {
-  const dataDir = path.join(process.cwd(), "src", "data");
-  const filePath = path.join(dataDir, "bookings.json");
-
-  // Create data directory if it doesn't exist
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  let bookings = [];
-
-  // Read existing bookings if file exists
-  if (fs.existsSync(filePath)) {
-    try {
-      const fileData = fs.readFileSync(filePath, "utf-8");
-      bookings = JSON.parse(fileData);
-    } catch (e) {
-      console.error("Error reading bookings database, resetting database:", e);
-      bookings = [];
-    }
-  }
-
   // Create unique ID and timestamp
   const newBooking = {
     id: `MYN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -50,10 +29,48 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     ...bookingData,
   };
 
-  bookings.push(newBooking);
+  const localDataDir = path.join(process.cwd(), "src", "data");
+  const localFilePath = path.join(localDataDir, "bookings.json");
+  const tmpFilePath = path.join("/tmp", "bookings.json");
 
-  // Write back to file
-  fs.writeFileSync(filePath, JSON.stringify(bookings, null, 2), "utf-8");
+  let bookings = [];
+  let success = false;
+
+  // 1. Try writing to local data directory
+  try {
+    if (!fs.existsSync(localDataDir)) {
+      fs.mkdirSync(localDataDir, { recursive: true });
+    }
+
+    if (fs.existsSync(localFilePath)) {
+      const fileData = fs.readFileSync(localFilePath, "utf-8");
+      bookings = JSON.parse(fileData);
+    }
+
+    bookings.push(newBooking);
+    fs.writeFileSync(localFilePath, JSON.stringify(bookings, null, 2), "utf-8");
+    success = true;
+  } catch (localError: any) {
+    console.warn(`Failed to write to local directory: ${localError.message || localError}. Retrying with /tmp...`);
+  }
+
+  // 2. If local write failed, try writing to /tmp/bookings.json
+  if (!success) {
+    try {
+      if (fs.existsSync(tmpFilePath)) {
+        const fileData = fs.readFileSync(tmpFilePath, "utf-8");
+        bookings = JSON.parse(fileData);
+      } else {
+        bookings = [];
+      }
+
+      bookings.push(newBooking);
+      fs.writeFileSync(tmpFilePath, JSON.stringify(bookings, null, 2), "utf-8");
+      success = true;
+    } catch (tmpError: any) {
+      console.error(`Failed to write to /tmp file database: ${tmpError.message || tmpError}. Booking details will not be saved locally.`);
+    }
+  }
 
   return newBooking;
 }

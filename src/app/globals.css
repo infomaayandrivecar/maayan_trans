@@ -121,7 +121,7 @@ html, body {
   width: 100%;
   min-height: 100%;
   overflow-x: hidden;
-  background-color: var(--surface);
+  background-color: transparent;
   color: var(--on-surface);
   font-family: var(--font-body);
   font-size: 16px;
@@ -133,7 +133,7 @@ html, body {
 /* Layout Surface Undertone */
 body {
   position: relative;
-  background-image: radial-gradient(circle at 10% 20%, var(--surface-tint-5) 0%, transparent 40%);
+  background-image: none;
   display: flex;
   flex-direction: column;
 }
@@ -447,12 +447,19 @@ p {
           align-items: flex-start;
         }
         .hero-badge {
-          background-color: var(--primary-container);
-          color: var(--on-primary-container);
-          padding: 0.4rem 1rem;
+          background-color: rgba(255, 179, 0, 0.12); /* Translucent soft gold */
+          color: #d97706; /* Premium amber/gold for high contrast */
+          padding: 0.5rem 1.25rem;
           border-radius: var(--radius-full);
           margin-bottom: 1.5rem;
           font-weight: 700;
+          letter-spacing: 0.08em;
+          border: 1px solid rgba(255, 179, 0, 0.18); /* Soft gold outline */
+        }
+        [data-theme="dark"] .hero-badge {
+          background-color: rgba(255, 179, 0, 0.15);
+          color: #ffb300;
+          border-color: rgba(255, 179, 0, 0.25);
         }
         .hero-title {
           margin-bottom: 1.5rem;
@@ -746,14 +753,14 @@ p {
           top: 0;
           left: 0;
           z-index: 999;
-          background: var(--glass-bg);
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(24px);
           -webkit-backdrop-filter: blur(24px);
           border-bottom: 1px solid var(--glass-border);
           transition: background-color var(--transition-normal), border-color var(--transition-normal);
         }
         [data-theme="dark"] .sticky-header {
-          background: var(--glass-bg);
+          background: rgba(10, 10, 11, 0.93);
         }
         .header-container {
           max-width: 1200px;
@@ -768,6 +775,7 @@ p {
           align-items: center;
           gap: 0.6rem;
           cursor: pointer;
+          text-decoration: none;
         }
         .logo-icon {
           display: flex;
@@ -781,9 +789,21 @@ p {
         .brand-text {
           font-family: var(--font-display);
           font-weight: 800;
-          font-size: 1.15rem;
+          font-size: 1.25rem;
           color: var(--on-surface);
-          letter-spacing: -0.01em;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+        }
+        .brand-accent {
+          font-weight: 500;
+          color: #d97706; /* Premium amber/gold for light theme */
+          letter-spacing: 0.04em;
+        }
+        [data-theme="dark"] .brand-accent {
+          color: #ffb300; /* Brilliant gold for dark theme */
         }
         .nav-links {
           display: flex;

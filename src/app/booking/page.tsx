@@ -74,6 +74,11 @@ export default function BookingWizard() {
     }
   }, [step]);
 
+  // Scroll to top when wizard step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" as any });
+  }, [step]);
+
   const formik = useFormik({
     initialValues: {
       fullName: state.passengerInfo.fullName || "",

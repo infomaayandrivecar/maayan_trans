@@ -146,6 +146,21 @@ export default function DateTimePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Lock background scroll when a picker is open
+  useEffect(() => {
+    if (showDatePicker || showTimePicker) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+    };
+  }, [showDatePicker, showTimePicker]);
+
   // Display Formatting Helpers
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return "Select Date";

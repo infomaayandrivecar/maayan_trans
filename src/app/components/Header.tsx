@@ -44,7 +44,7 @@ export default function Header() {
               <path d="M10 14.8L11 16.8L12 15.5L13 16.8L14 14.8" stroke="var(--primary-container)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <span className="brand-text">Maayan Trans</span>
+          <span className="brand-text">Maayan <span className="brand-accent">Trans</span></span>
         </Link>
 
         <div className="header-actions">

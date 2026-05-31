@@ -136,7 +136,7 @@ export default function Home() {
               initial="hidden"
               animate="visible"
             >
-              <motion.span variants={fadeIn} className="hero-badge label-sm">Reliable Taxi Booking Services</motion.span>
+              <motion.span variants={fadeIn} className="hero-badge label-sm">Reliable Inter-City Travel</motion.span>
               <motion.h1 variants={fadeIn} className="display-lg hero-title">
                 Your Premium Journey <span className="highlight-text">Starts Here.</span>
               </motion.h1>

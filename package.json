@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "canvas-confetti": "^1.9.4",
     "formik": "^2.4.9",
     "framer-motion": "^12.40.0",

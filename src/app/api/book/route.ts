@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
+import { supabase } from "@/lib/supabaseClient";
 
 interface RawBookingData {
   fullName: string;
@@ -70,6 +71,37 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     } catch (tmpError: any) {
       console.error(`Failed to write to /tmp file database: ${tmpError.message || tmpError}. Booking details will not be saved locally.`);
     }
+  }
+
+  // 3. Try writing to Supabase
+  try {
+    const { error: supabaseError } = await supabase
+      .from("bookings")
+      .insert({
+        id: newBooking.id,
+        full_name: bookingData.fullName,
+        phone_number: bookingData.phoneNumber,
+        email_address: bookingData.emailAddress,
+        passengers_count: bookingData.passengersCount,
+        trip_instructions: bookingData.tripInstructions,
+        trip_type: bookingData.tripType,
+        pickup_location: bookingData.pickupLocation,
+        dropoff_location: bookingData.dropoffLocation,
+        pickup_date: bookingData.pickupDate,
+        pickup_time: bookingData.pickupTime,
+        number_of_days: bookingData.numberOfDays,
+        car_type: bookingData.carType,
+        distance_km: bookingData.distanceKm,
+        total_fare: bookingData.totalFare,
+      });
+
+    if (supabaseError) {
+      console.error("Failed to save booking to Supabase:", supabaseError.message || supabaseError);
+    } else {
+      console.log(`Booking successfully saved to Supabase for ${newBooking.id}`);
+    }
+  } catch (err: any) {
+    console.error("Error connecting to Supabase:", err.message || err);
   }
 
   return newBooking;

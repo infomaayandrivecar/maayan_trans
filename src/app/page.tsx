@@ -116,7 +116,7 @@ export default function Home() {
         {/* HERO SECTION */}
         <section className="hero-section" style={{ position: 'relative' }}>
           {/* Subtle animated background gradient */}
-          <motion.div 
+          <motion.div
             className="hero-bg-gradient"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -130,7 +130,7 @@ export default function Home() {
 
           <div className="hero-container">
             {/* Left Content (Animated) */}
-            <motion.div 
+            <motion.div
               className="hero-text-area"
               variants={staggerContainer}
               initial="hidden"
@@ -170,7 +170,7 @@ export default function Home() {
             </motion.div>
 
             {/* Right Booking Card (Animated) */}
-            <motion.div 
+            <motion.div
               className="hero-form-area"
               initial={{ opacity: 0, scale: 0.95, x: 20 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -282,7 +282,7 @@ export default function Home() {
                     {formik.values.tripType === "Round Trip" && (
                       <div className="input-field-container" ref={daysDropdownRef} style={{ position: 'relative' }}>
                         <label className="input-label">Number of Days</label>
-                        <div 
+                        <div
                           className={`custom-picker-trigger ${showDaysDropdown ? "active" : ""}`}
                           onClick={() => setShowDaysDropdown(!showDaysDropdown)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'pointer' }}
@@ -303,7 +303,7 @@ export default function Home() {
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
                               transition={{ duration: 0.15 }}
-                              className="picker-popover card-lowest"
+                              className="picker-popover card-lowest days-dropdown-popover"
                               style={{
                                 position: 'absolute',
                                 top: '105%',
@@ -386,7 +386,7 @@ export default function Home() {
         {/* SERVICES GRID SECTION (SEO OPTIMIZED) */}
         <section id="services" className="features-section">
           <div className="section-container">
-            <motion.div 
+            <motion.div
               className="section-header"
               initial="hidden"
               whileInView="visible"
@@ -397,7 +397,7 @@ export default function Home() {
               <p className="section-subtitle body-md">Whether you need a quick local ride or a long outstation journey, Maayan Trans delivers excellence.</p>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               className="features-grid"
               variants={staggerContainer}
               initial="hidden"
@@ -411,8 +411,8 @@ export default function Home() {
                 { icon: <Navigation size={28} />, title: "Local City Rides", desc: "Explore the city with our premium local rental packages. Hourly and full-day booking available." },
                 { icon: <Briefcase size={28} />, title: "Corporate Travel Solutions", desc: "Executive transportation for business professionals. Streamlined billing and premium fleet options." }
               ].map((service, idx) => (
-                <motion.div 
-                  key={idx} 
+                <motion.div
+                  key={idx}
                   className="feature-card card-lowest"
                   variants={fadeIn}
                   whileHover={{ y: -8, boxShadow: 'var(--shadow-ambient)' }}
@@ -432,7 +432,7 @@ export default function Home() {
         {/* TRUST & SAFETY SECTION (SEO OPTIMIZED) */}
         <section className="features-section">
           <div className="section-container">
-            <motion.div 
+            <motion.div
               className="section-header"
               initial="hidden"
               whileInView="visible"
@@ -443,7 +443,7 @@ export default function Home() {
               <p className="section-subtitle body-md">We are committed to delivering safe, affordable, and transparent pricing for every ride.</p>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               className="features-grid"
               variants={staggerContainer}
               initial="hidden"
@@ -474,7 +474,7 @@ export default function Home() {
         {/* ABOUT SECTION */}
         <section id="about" className="about-section">
           <div className="about-container">
-            <motion.div 
+            <motion.div
               className="about-image-column"
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -493,7 +493,7 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               className="about-text-column"
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -504,14 +504,14 @@ export default function Home() {
               <p className="about-description body-md">
                 <strong>Maayan Trans & Services</strong> is your trusted partner for comfortable and reliable inter-city travel. We pride ourselves on punctual service, professional drivers, and a fleet of well-maintained vehicles to ensure your journey is safe and pleasant. Whether it's a corporate trip or a family vacation, we guarantee the best mobility experience.
               </p>
-              
+
               <div className="checklist-container">
                 <div className="check-item">
-                  <ShieldCheck size={20} className="check-icon" style={{ color: 'var(--primary-container)' }} />
+                  <ShieldCheck size={20} className="check-icon" style={{ color: '#ffb300' }} />
                   <span className="check-text body-md">Certified Chauffeurs</span>
                 </div>
                 <div className="check-item">
-                  <ShieldCheck size={20} className="check-icon" style={{ color: 'var(--primary-container)' }} />
+                  <ShieldCheck size={20} className="check-icon" style={{ color: '#ffb300' }} />
                   <span className="check-text body-md">Premium Executive Fleet</span>
                 </div>
               </div>

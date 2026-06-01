@@ -159,7 +159,7 @@ export default function PlacesAutocomplete({
               className="prediction-row"
               onClick={() => handleSelect(pred)}
             >
-              <MapPin size={16} className="location-pin-icon" />
+              <MapPin size={16} className="location-pin-icon" style={{ color: 'var(--on-surface)', opacity: 0.8, flexShrink: 0 }} />
               <div className="prediction-details">
                 <span className="main-text">{pred.structured_formatting.main_text}</span>
                 <span className="secondary-text">{pred.structured_formatting.secondary_text}</span>
@@ -263,11 +263,14 @@ export default function PlacesAutocomplete({
           background-color: var(--surface-container-high);
         }
         .location-pin-icon {
-          color: var(--on-surface-variant);
+          color: var(--on-surface) !important;
+          opacity: 0.8 !important;
           flex-shrink: 0;
+          transition: color var(--transition-fast), opacity var(--transition-fast);
         }
         .prediction-row:hover .location-pin-icon {
-          color: var(--primary);
+          color: var(--primary) !important;
+          opacity: 1 !important;
         }
         .prediction-details {
           display: flex;

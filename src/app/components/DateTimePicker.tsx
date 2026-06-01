@@ -290,6 +290,17 @@ export default function DateTimePicker({
         <AnimatePresence>
           {showDatePicker && (
             <motion.div
+              key="datepicker-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="picker-backdrop"
+              onClick={() => setShowDatePicker(false)}
+            />
+          )}
+          {showDatePicker && (
+            <motion.div
+              key="datepicker-popover"
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -368,6 +379,17 @@ export default function DateTimePicker({
         <AnimatePresence>
           {showTimePicker && (
             <motion.div
+              key="timepicker-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="picker-backdrop"
+              onClick={() => setShowTimePicker(false)}
+            />
+          )}
+          {showTimePicker && (
+            <motion.div
+              key="timepicker-popover"
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}

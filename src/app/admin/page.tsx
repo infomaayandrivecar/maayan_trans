@@ -362,22 +362,21 @@ export default function AdminPage() {
             size: portrait;
             margin: 10mm;
           }
-          html, body {
+          html, body, #__next, .landing-page {
             height: auto !important;
             min-height: 0 !important;
             overflow: visible !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #fff !important;
+            display: block !important;
           }
           /* Hide all sibling layout modules on print to completely free page flow */
           header, .sticky-header, main.main-content, .no-print {
             display: none !important;
           }
           .print-modal-overlay {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
             width: 100% !important;
             height: auto !important;
             background: white !important;
@@ -385,10 +384,10 @@ export default function AdminPage() {
             overflow: visible !important;
             margin: 0 !important;
             padding: 0 !important;
-            z-index: 99999 !important;
             box-shadow: none !important;
           }
           .print-modal-content {
+            position: static !important;
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
@@ -396,6 +395,7 @@ export default function AdminPage() {
             width: 100% !important;
             max-width: 100% !important;
             background: transparent !important;
+            height: auto !important;
           }
           .print-container {
             display: block !important;
@@ -470,6 +470,70 @@ export default function AdminPage() {
           }
         }
 
+        @media (max-width: 600px) {
+          /* Search & filter mobile styles */
+          .search-filter-container {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 1rem !important;
+            padding: 1.25rem 1rem !important;
+          }
+          .search-filter-container .input-wrapper {
+            max-width: 100% !important;
+            width: 100% !important;
+          }
+          .trip-type-wrapper {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+          .trip-type-wrapper .input-wrapper {
+            flex: 1 !important;
+            max-width: 200px !important;
+          }
+
+          /* Booking card mobile styles */
+          .booking-card-main {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 0.75rem !important;
+          }
+          .booking-card-info {
+            min-width: 100% !important;
+            width: 100% !important;
+          }
+          .booking-card-meta {
+            width: 100% !important;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            text-align: left !important;
+            border-top: 1px dashed var(--outline-variant);
+            padding-top: 0.75rem;
+            margin-top: 0.25rem;
+          }
+          .booking-card-meta > div {
+            margin-top: 0 !important;
+          }
+          .booking-card-meta > div:first-child {
+            display: flex !important;
+            gap: 0.4rem !important;
+            align-items: center !important;
+            flex: 1 1 auto !important;
+            margin-right: 0.5rem !important;
+          }
+          .booking-card-meta > div:last-child {
+            margin-top: 0 !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+          .booking-card-meta .trip-badge,
+          .booking-card-meta .status-badge {
+            margin-bottom: 0 !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+        }
+
         /* Theme styles for booking card left border */
         .round-trip-card {
           border-left: 4px solid var(--primary-container) !important;
@@ -490,6 +554,7 @@ export default function AdminPage() {
           border-radius: var(--radius-full);
           display: inline-block;
           margin-bottom: 0.4rem;
+          white-space: nowrap;
         }
         .trip-badge.round-trip {
           background-color: rgba(255, 179, 0, 0.12) !important;
@@ -515,6 +580,7 @@ export default function AdminPage() {
           border-radius: var(--radius-full);
           display: inline-block;
           letter-spacing: 0.05em;
+          white-space: nowrap;
         }
         .status-badge.pending {
           background-color: rgba(245, 158, 11, 0.1) !important;
@@ -709,7 +775,7 @@ export default function AdminPage() {
             </div>
 
             {/* Filter and Search Bar */}
-            <div className="card-lowest" style={{ padding: "1rem 1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="card-lowest search-filter-container" style={{ padding: "1rem 1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
               <div className="input-wrapper" style={{ flex: 1, minWidth: "260px", maxWidth: "450px" }}>
                 <Search size={18} />
                 <input
@@ -720,7 +786,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <span className="input-label" style={{ margin: 0 }}>Trip Type:</span>
                 <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
                   <select
@@ -779,8 +845,8 @@ export default function AdminPage() {
                       onClick={() => toggleExpand(booking.id)}
                       layout
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
-                        <div style={{ display: "flex", gap: "1rem", flex: 1, minWidth: "260px" }}>
+                      <div className="booking-card-main" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div className="booking-card-info" style={{ display: "flex", gap: "1rem", flex: 1, minWidth: "260px" }}>
                           <div>
                             <span className="hero-badge label-sm" style={{ padding: "0.25rem 0.6rem", fontSize: "0.6rem", textTransform: "none", marginBottom: 0, display: "inline-block" }}>
                               {booking.id}
@@ -799,7 +865,7 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
+                        <div className="booking-card-meta" style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
                           <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                             <span className={`status-badge ${(booking.status || "Pending").toLowerCase()}`}>
                               {booking.status || "Pending"}
@@ -1010,6 +1076,18 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      <footer className="no-print" style={{
+        padding: "1.5rem",
+        textAlign: "center",
+        borderTop: "1px solid var(--outline-variant)",
+        color: "var(--on-surface-variant)",
+        fontSize: "0.85rem",
+        backgroundColor: "var(--surface-container-low)",
+        width: "100%"
+      }}>
+        © 2026 Maayan Trans & Services. All rights reserved.
+      </footer>
 
       {/* ================= TRIP SHEET DIALOG / MODAL ================= */}
       <AnimatePresence>

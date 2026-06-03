@@ -24,7 +24,7 @@ export default function DateTimePicker({
   const timePickerRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
-  const todayDateString = now.toISOString().split("T")[0];
+  const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
@@ -84,6 +84,59 @@ export default function DateTimePicker({
     return testDate.getTime() >= minValid.getTime();
   };
 
+  // Get nearest valid date and time (at least 30 mins in future, rounded up to 5 mins)
+  const getNearestValidDateTime = (
+    dateStr: string,
+    timeStr: string
+  ): { date: string; time: string } => {
+    const now = new Date();
+    const minValid = new Date(now.getTime() + 30 * 60 * 1000);
+    
+    // Local date string for the minimum valid date
+    const minValidDateStr = `${minValid.getFullYear()}-${String(minValid.getMonth() + 1).padStart(2, "0")}-${String(minValid.getDate()).padStart(2, "0")}`;
+    
+    let targetDateStr = dateStr;
+    if (!targetDateStr || targetDateStr < minValidDateStr) {
+      targetDateStr = minValidDateStr;
+    }
+    
+    const { h12, min, period } = parse24h(timeStr || "12:00");
+    let h24 = h12;
+    if (period === "PM" && h12 !== 12) h24 += 12;
+    if (period === "AM" && h12 === 12) h24 = 0;
+    
+    const [y, m, d] = targetDateStr.split("-").map(Number);
+    const targetDateTime = new Date(y, m - 1, d, h24, min, 0, 0);
+    
+    if (targetDateTime.getTime() >= minValid.getTime()) {
+      return { date: targetDateStr, time: to24hString(h12, min, period) };
+    }
+    
+    // Round minValid minutes up to nearest 5 minutes
+    let validMin = Math.ceil(minValid.getMinutes() / 5) * 5;
+    let validH24 = minValid.getHours();
+    const validDate = new Date(minValid);
+    
+    if (validMin >= 60) {
+      validMin = 0;
+      validH24 += 1;
+      if (validH24 >= 24) {
+        validH24 = 0;
+        validDate.setDate(validDate.getDate() + 1);
+      }
+    }
+    
+    const finalDateStr = `${validDate.getFullYear()}-${String(validDate.getMonth() + 1).padStart(2, "0")}-${String(validDate.getDate()).padStart(2, "0")}`;
+    const finalPeriod: "AM" | "PM" = validH24 >= 12 ? "PM" : "AM";
+    let finalH12 = validH24 % 12;
+    finalH12 = finalH12 === 0 ? 12 : finalH12;
+    
+    return {
+      date: finalDateStr,
+      time: to24hString(finalH12, validMin, finalPeriod),
+    };
+  };
+
   // Get nearest valid time (30 mins in future, rounded up to 5 mins)
   const getNearestValidTime = (
     dateStr: string,
@@ -91,46 +144,33 @@ export default function DateTimePicker({
     min: number,
     period: "AM" | "PM"
   ): { h12: number; min: number; period: "AM" | "PM" } => {
-    if (dateStr !== todayDateString) return { h12, min, period };
-    if (isValidTime(h12, min, period)) return { h12, min, period };
-
-    const minValid = getMinValidTime();
-    let validMin = Math.ceil(minValid.getMinutes() / 5) * 5;
-    let validH24 = minValid.getHours();
-    
-    if (validMin >= 60) {
-      validMin = 0;
-      validH24 = (validH24 + 1) % 24;
-    }
-
-    const validPeriod: "AM" | "PM" = validH24 >= 12 ? "PM" : "AM";
-    let validH12 = validH24 % 12;
-    validH12 = validH12 === 0 ? 12 : validH12;
-
-    return { h12: validH12, min: validMin, period: validPeriod };
+    const { time } = getNearestValidDateTime(dateStr, to24hString(h12, min, period));
+    return parse24h(time);
   };
 
-  // Auto-correct time if date changes to today and time becomes past
+  // Auto-correct time/date if selection becomes past
   useEffect(() => {
-    if (pickupDate && pickupTime) {
-      const { h12, min, period } = parse24h(pickupTime);
-      const validated = getNearestValidTime(pickupDate, h12, min, period);
-      const validated24h = to24hString(validated.h12, validated.min, validated.period);
-      if (validated24h !== pickupTime) {
-        setPickupTime(validated24h);
+    if (pickupDate) {
+      const { date, time } = getNearestValidDateTime(pickupDate, pickupTime);
+      if (date !== pickupDate) {
+        setPickupDate(date);
+      }
+      if (pickupTime && time !== pickupTime) {
+        setPickupTime(time);
       }
     }
-  }, [pickupDate]);
+  }, [pickupDate, pickupTime, showTimePicker, showDatePicker]);
 
   // Sync temp pickers state when opening Time Picker
   useEffect(() => {
-    if (showTimePicker && pickupTime) {
-      const { h12, min, period } = parse24h(pickupTime);
+    if (showTimePicker) {
+      const { time } = getNearestValidDateTime(pickupDate, pickupTime);
+      const { h12, min, period } = parse24h(time);
       setTempHour(h12);
       setTempMinute(min);
       setTempPeriod(period);
     }
-  }, [showTimePicker, pickupTime]);
+  }, [showTimePicker, pickupTime, pickupDate]);
 
   // Click outside detection to close dropdowns
   useEffect(() => {
@@ -164,7 +204,8 @@ export default function DateTimePicker({
   // Display Formatting Helpers
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return "Select Date";
-    const dateObj = new Date(dateStr);
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const dateObj = new Date(year, month - 1, day);
     if (isNaN(dateObj.getTime())) return "Select Date";
     return dateObj.toLocaleDateString("en-US", {
       weekday: "short",
@@ -340,7 +381,8 @@ export default function DateTimePicker({
                   // Check if cell is in the past
                   const cellDate = new Date(currentYear, currentMonth, day);
                   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                  const isPast = cellDate.getTime() < todayStart.getTime();
+                  const isPast = cellDate.getTime() < todayStart.getTime() ||
+                    (cellDate.getTime() === todayStart.getTime() && (now.getHours() > 23 || (now.getHours() === 23 && now.getMinutes() >= 30)));
 
                   return (
                     <button

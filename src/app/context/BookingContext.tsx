@@ -36,7 +36,7 @@ export interface BookingReceipt {
   emailAddress: string;
   passengersCount: number;
   tripInstructions: string;
-  tripType: "One Way" | "Round Trip";
+  tripType: "One Way" | "Round Trip" | "Outstation Trip";
   pickupLocation: string;
   dropoffLocation: string;
   pickupDate: string;
@@ -47,8 +47,45 @@ export interface BookingReceipt {
   totalFare: number;
 }
 
+export interface CompanySettings {
+  phone: string;
+  email: string;
+  address: string;
+  marqueeText?: string;
+  notificationEmails?: string[];
+  gst?: string;
+  pan?: string;
+}
+
+export interface VehicleSettings {
+  ratePerKm: number;
+  driverAllowancePerDay: number;
+}
+
+export interface SettingsData {
+  company: CompanySettings;
+  vehicles: Record<string, VehicleSettings>;
+}
+
+export const DEFAULT_SETTINGS: SettingsData = {
+  company: {
+    phone: "+91 98942 21664",
+    email: "maayantransporters@gmail.com",
+    address: "11-E, RKK Nagar, Singanallur, Coimbatore, Tamil Nadu, India",
+    marqueeText: "✨ Welcome to Maayan Trans & Services! Premium Inter-City Travel, Airport Transfers, and Local Rides at Affordable Rates. ✨ | 📞 Call us at +91 98942 21664 to book your ride today! 📞 | ⭐ Safe, Vetted, and Professional Drivers for a Premium Experience. ⭐",
+    notificationEmails: ["info.maayandrivecar@gmail.com"]
+  },
+  vehicles: {
+    hatchback: { ratePerKm: 13, driverAllowancePerDay: 300 },
+    sedan: { ratePerKm: 14, driverAllowancePerDay: 350 },
+    premium_sedan: { ratePerKm: 16, driverAllowancePerDay: 400 },
+    suv: { ratePerKm: 17.5, driverAllowancePerDay: 450 },
+    premium_suv: { ratePerKm: 20, driverAllowancePerDay: 500 },
+  },
+};
+
 export interface BookingState {
-  tripType: "One Way" | "Round Trip";
+  tripType: "One Way" | "Round Trip" | "Outstation Trip";
   pickup: Place | null;
   dropoff: Place | null;
   pickupDate: string;
@@ -60,6 +97,7 @@ export interface BookingState {
   selectedVehicle: Vehicle | null;
   passengerInfo: PassengerInfo;
   bookingReceipt: BookingReceipt | null;
+  settings: SettingsData;
 }
 
 interface BookingContextType {
@@ -67,7 +105,7 @@ interface BookingContextType {
   vehicles: Vehicle[];
   isLoading: boolean;
   error: string | null;
-  setTripType: (type: "One Way" | "Round Trip") => void;
+  setTripType: (type: "One Way" | "Round Trip" | "Outstation Trip") => void;
   setPickup: (place: Place | null) => void;
   setDropoff: (place: Place | null) => void;
   setPickupDate: (date: string) => void;
@@ -77,9 +115,10 @@ interface BookingContextType {
   setVehicle: (vehicle: Vehicle) => void;
   setPassengerInfo: (info: Partial<PassengerInfo>) => void;
   calculateDistance: () => Promise<boolean>;
-  calculateFare: (vehicle: Vehicle) => number;
+  calculateFare: (vehicle: Vehicle, includeDriverAllowance?: boolean) => number;
   submitBooking: (overrideInfo?: Partial<PassengerInfo>) => Promise<boolean>;
   resetBooking: () => void;
+  refreshSettings: () => Promise<void>;
 }
 
 const VEHICLES: Vehicle[] = [
@@ -89,8 +128,8 @@ const VEHICLES: Vehicle[] = [
     image: "/images/hatchback.png",
     ratePerKm: 13,
     driverAllowancePerDay: 300,
-    tollPermitCharge: 264,
-    features: "Driver Betta, Toll & Permit included. Extra Km, Hills & luggage charges are exclude.",
+    tollPermitCharge: 0,
+    features: "Driver Betta, Toll & Permit, Extra Km, Hills & luggage charges are exclude.",
   },
   {
     id: "sedan",
@@ -98,8 +137,8 @@ const VEHICLES: Vehicle[] = [
     image: "/images/sedan.png",
     ratePerKm: 14,
     driverAllowancePerDay: 350,
-    tollPermitCharge: 264,
-    features: "Driver Betta, Toll & Permit included. Extra Km, Hills & luggage charges are exclude.",
+    tollPermitCharge: 0,
+    features: "Driver Betta, Toll & Permit, Extra Km, Hills & luggage charges are exclude.",
   },
   {
     id: "premium_sedan",
@@ -107,8 +146,8 @@ const VEHICLES: Vehicle[] = [
     image: "/images/premium_sedan.png",
     ratePerKm: 16,
     driverAllowancePerDay: 400,
-    tollPermitCharge: 274,
-    features: "Driver Betta, Toll & Permit included. Extra Km, Hills & luggage charges are exclude.",
+    tollPermitCharge: 0,
+    features: "Driver Betta, Toll & Permit, Extra Km, Hills & luggage charges are exclude.",
     isTopPick: true,
   },
   {
@@ -117,8 +156,8 @@ const VEHICLES: Vehicle[] = [
     image: "/images/suv.png",
     ratePerKm: 17.5,
     driverAllowancePerDay: 450,
-    tollPermitCharge: 281.5,
-    features: "Driver Betta, Toll & Permit included. Extra Km, Hills & luggage charges are exclude.",
+    tollPermitCharge: 0,
+    features: "Driver Betta, Toll & Permit, Extra Km, Hills & luggage charges are exclude.",
   },
   {
     id: "premium_suv",
@@ -126,8 +165,8 @@ const VEHICLES: Vehicle[] = [
     image: "/images/premium_suv.png",
     ratePerKm: 20,
     driverAllowancePerDay: 500,
-    tollPermitCharge: 378,
-    features: "Driver Betta, Toll & Permit included. Extra Km, Hills & luggage charges are exclude.",
+    tollPermitCharge: 0,
+    features: "Driver Betta, Toll & Permit, Extra Km, Hills & luggage charges are exclude.",
   },
 ];
 
@@ -152,6 +191,7 @@ const defaultState: BookingState = {
   selectedVehicle: null,
   passengerInfo: initialPassengerInfo,
   bookingReceipt: null,
+  settings: DEFAULT_SETTINGS,
 };
 
 const BookingContext = createContext<BookingContextType | undefined>(undefined);
@@ -162,20 +202,89 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load state from sessionStorage on mount
+  // Memoize vehicles list with rates applied from settings
+  const vehicles = React.useMemo(() => {
+    return VEHICLES.map(v => {
+      const custom = state.settings?.vehicles?.[v.id];
+      if (custom) {
+        return {
+          ...v,
+          ratePerKm: custom.ratePerKm,
+          driverAllowancePerDay: custom.driverAllowancePerDay,
+        };
+      }
+      return v;
+    });
+  }, [state.settings]);
+
+  const refreshSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => {
+          const updatedSelectedVehicle = prev.selectedVehicle
+            ? {
+              ...prev.selectedVehicle,
+              ratePerKm: data.vehicles[prev.selectedVehicle.id]?.ratePerKm ?? prev.selectedVehicle.ratePerKm,
+              driverAllowancePerDay: data.vehicles[prev.selectedVehicle.id]?.driverAllowancePerDay ?? prev.selectedVehicle.driverAllowancePerDay,
+            }
+            : null;
+          return {
+            ...prev,
+            settings: data,
+            selectedVehicle: updatedSelectedVehicle,
+          };
+        });
+      }
+    } catch (err) {
+      console.error("Failed to refresh settings:", err);
+    }
+  };
+
+  // Load state and settings on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("maayan_booking_state");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setState(parsed);
-        } catch (e) {
-          console.error("Failed to parse saved booking state:", e);
+    const loadStateAndSettings = async () => {
+      let loadedState = defaultState;
+      if (typeof window !== "undefined") {
+        const saved = sessionStorage.getItem("maayan_booking_state");
+        if (saved) {
+          try {
+            loadedState = JSON.parse(saved);
+          } catch (e) {
+            console.error("Failed to parse saved booking state:", e);
+          }
         }
       }
+
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const settingsData = await res.json();
+          const updatedSelectedVehicle = loadedState.selectedVehicle
+            ? {
+              ...loadedState.selectedVehicle,
+              ratePerKm: settingsData.vehicles[loadedState.selectedVehicle.id]?.ratePerKm ?? loadedState.selectedVehicle.ratePerKm,
+              driverAllowancePerDay: settingsData.vehicles[loadedState.selectedVehicle.id]?.driverAllowancePerDay ?? loadedState.selectedVehicle.driverAllowancePerDay,
+            }
+            : null;
+
+          setState({
+            ...loadedState,
+            settings: settingsData,
+            selectedVehicle: updatedSelectedVehicle,
+          });
+        } else {
+          setState(loadedState);
+        }
+      } catch (err) {
+        console.error("Failed to load settings on mount:", err);
+        setState(loadedState);
+      }
       setIsLoaded(true);
-    }
+    };
+
+    loadStateAndSettings();
   }, []);
 
   // Save state to sessionStorage when it changes
@@ -189,7 +298,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, isLoaded]);
 
-  const setTripType = (tripType: "One Way" | "Round Trip") => {
+  const setTripType = (tripType: "One Way" | "Round Trip" | "Outstation Trip") => {
     setState(prev => ({ ...prev, tripType }));
   };
 
@@ -267,25 +376,29 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Calculate fare based on standard outstation formulas
-  const calculateFare = (vehicle: Vehicle): number => {
+  const calculateFare = (vehicle: Vehicle, includeDriverAllowance = true): number => {
     if (state.distanceKm === null) return 0;
 
-    let distanceToCharge = state.distanceKm;
-    const days = state.tripType === "Round Trip" ? state.numberOfDays : 1;
+    // Resolve latest rates from settings
+    const latestRates = state.settings?.vehicles?.[vehicle.id] || vehicle;
 
-    if (state.tripType === "Round Trip") {
-      // Outstation round trips are charged for both ways (pickup to dropoff and return)
+    let distanceToCharge = state.distanceKm;
+    const isRoundOrOutstation = state.tripType === "Round Trip" || state.tripType === "Outstation Trip";
+    const days = isRoundOrOutstation ? Math.max(1, state.numberOfDays || 1) : 1;
+
+    if (isRoundOrOutstation) {
+      // Outstation round/outstation trips are charged for both ways (pickup to dropoff and return)
       const totalEstimatedKm = state.distanceKm * 2;
       // Minimum charged kms is 250km per day for outstation taxi services in India
       const minKmsForDays = days * 250;
       distanceToCharge = Math.max(totalEstimatedKm, minKmsForDays);
     }
 
-    const runningFare = distanceToCharge * vehicle.ratePerKm;
-    const driverFare = days * vehicle.driverAllowancePerDay;
+    const runningFare = distanceToCharge * latestRates.ratePerKm;
+    const driverFare = days * latestRates.driverAllowancePerDay;
     const extraCharges = vehicle.tollPermitCharge;
 
-    const total = runningFare + driverFare + extraCharges;
+    const total = runningFare + (includeDriverAllowance ? driverFare : 0) + extraCharges;
     return Math.round(total * 100) / 100;
   };
 
@@ -360,7 +473,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     <BookingContext.Provider
       value={{
         state,
-        vehicles: VEHICLES,
+        vehicles,
         isLoading,
         error,
         setTripType,
@@ -376,6 +489,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         calculateFare,
         submitBooking,
         resetBooking,
+        refreshSettings,
       }}
     >
       {children}

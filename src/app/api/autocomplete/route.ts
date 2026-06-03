@@ -30,7 +30,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: data.error_message || data.status }, { status: 400 });
     }
 
-    return NextResponse.json({ predictions: data.predictions || [] });
+    return NextResponse.json(
+      { predictions: data.predictions || [] },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=600"
+        }
+      }
+    );
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },

@@ -4,10 +4,16 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Phone, Moon, Sun } from "lucide-react";
 import { useBooking } from "../context/BookingContext";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
   const [theme, setTheme] = useState("light");
-  const { resetBooking } = useBooking();
+  const { state, resetBooking } = useBooking();
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+
+  const defaultMarquee = `✨ Welcome to Maayan Trans & Services! Premium Inter-City Travel, Airport Transfers, and Local Rides at Affordable Rates. ✨ | 📞 Call us at ${state.settings?.company?.phone || "+91 98942 21664"} to book your ride today! 📞 | ⭐ Safe, Vetted, and Professional Drivers for a Premium Experience. ⭐`;
+  const marqueeItems = (state.settings?.company?.marqueeText || defaultMarquee).split("|");
 
   // Load saved theme on mount
   useEffect(() => {
@@ -62,12 +68,29 @@ export default function Header() {
           </button>
 
           {/* Quick Call */}
-          <a href="tel:+919894221664" className="btn-call">
-            <Phone size={14} fill="currentColor" />
-            <span>+91 98942 21664</span>
+          <a href={`tel:${state.settings?.company?.phone?.replace(/\s+/g, "") || "+919894221664"}`} className="btn-call">
+            <Phone size={14} />
+            <span>{state.settings?.company?.phone || "+91 98942 21664"}</span>
           </a>
         </div>
       </div>
+      {isHome && (
+        <div className="scrolling-banner">
+          <div className="scrolling-banner-track">
+            <div className="scrolling-banner-content">
+              {marqueeItems.map((item, idx) => (
+                <span key={idx}>{item.trim()}</span>
+              ))}
+            </div>
+            {/* Duplicate for seamless looping marquee */}
+            <div className="scrolling-banner-content" aria-hidden="true">
+              {marqueeItems.map((item, idx) => (
+                <span key={idx}>{item.trim()}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -2,8 +2,11 @@
 
 import React from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
+import { useBooking } from "../context/BookingContext";
+import Link from "next/link";
 
 export default function Footer() {
+  const { state } = useBooking();
   return (
     <footer className="site-footer">
       <div className="footer-container">
@@ -31,10 +34,9 @@ export default function Footer() {
         <div className="footer-links-col">
           <h4 className="footer-title">Company</h4>
           <ul className="footer-links-list">
-            <li><a href="#about">About Us</a></li>
-            <li><a href="#careers">Careers</a></li>
-            <li><a href="#safety">Safety First</a></li>
-            <li><a href="#terms">Terms of Service</a></li>
+            <li><Link href="/about">About Us</Link></li>
+            <li><Link href="/safety">Safety First</Link></li>
+            <li><Link href="/terms">Terms of Service</Link></li>
           </ul>
         </div>
 
@@ -43,21 +45,30 @@ export default function Footer() {
           <ul className="footer-contact-list">
             <li>
               <Mail size={16} className="contact-icon" />
-              <a href="mailto:maayantransporters@gmail.com" className="contact-link">
-                maayantransporters@gmail.com
+              <a href={`mailto:${state.settings?.company?.email || "maayantransporters@gmail.com"}`} className="contact-link">
+                {state.settings?.company?.email || "maayantransporters@gmail.com"}
               </a>
             </li>
             <li>
               <Phone size={16} className="contact-icon" />
-              <a href="tel:+919894221664" className="contact-link">
-                +91 98942 21664
+              <a href={`tel:${state.settings?.company?.phone?.replace(/\s+/g, "") || "+919894221664"}`} className="contact-link">
+                {state.settings?.company?.phone || "+91 98942 21664"}
               </a>
             </li>
             <li>
               <MapPin size={16} className="contact-icon address-icon" />
               <span className="contact-address">
-                11-E, RKK Nagar, Singanallur,<br />
-                Coimbatore, Tamil Nadu, India
+                {state.settings?.company?.address ? (
+                  <>
+                    {state.settings.company.address.split(",").slice(0, 3).join(",")},<br />
+                    {state.settings.company.address.split(",").slice(3).join(",")}
+                  </>
+                ) : (
+                  <>
+                    11-E, RKK Nagar, Singanallur,<br />
+                    Coimbatore, Tamil Nadu, India
+                  </>
+                )}
               </span>
             </li>
           </ul>

@@ -34,6 +34,7 @@ export default function PlacesAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cacheRef = useRef<Record<string, Prediction[]>>({});
 
   const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
   if (initialValue !== prevInitialValue) {
@@ -53,6 +54,13 @@ export default function PlacesAutocomplete({
       return;
     }
 
+    // If query is already cached, resolve immediately and skip fetch
+    if (cacheRef.current[trimmedQuery]) {
+      setPredictions(cacheRef.current[trimmedQuery]);
+      setIsLoading(false);
+      return;
+    }
+
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
     }
@@ -61,13 +69,17 @@ export default function PlacesAutocomplete({
       try {
         const res = await fetch(`/api/autocomplete?input=${encodeURIComponent(trimmedQuery)}`);
         const data = await res.json();
-        setPredictions(data.predictions || []);
+        const predictionsList = data.predictions || [];
+
+        // Cache the predictions list
+        cacheRef.current[trimmedQuery] = predictionsList;
+        setPredictions(predictionsList);
       } catch (err) {
         console.error("Autocomplete error:", err);
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 150); // Lowered from 300ms to 150ms for ultra-responsive feel
 
     return () => {
       if (fetchTimeoutRef.current) {
@@ -128,9 +140,15 @@ export default function PlacesAutocomplete({
           onChange={(e) => {
             const val = e.target.value;
             setQuery(val);
-            if (val.trim().length < 3) {
+            const trimmed = val.trim();
+            if (trimmed.length < 3) {
               setPredictions([]);
               setIsLoading(false);
+            } else if (cacheRef.current[trimmed]) {
+              // Instant display if results are already in client cache
+              setPredictions(cacheRef.current[trimmed]);
+              setIsLoading(false);
+              setShowDropdown(true);
             } else {
               setIsLoading(true);
               setShowDropdown(true);
@@ -226,10 +244,9 @@ export default function PlacesAutocomplete({
           justify-content: center;
           padding: 4px;
           border-radius: var(--radius-full);
-          transition: background-color var(--transition-fast), color var(--transition-fast);
+          transition: color var(--transition-fast);
         }
         .clear-btn:hover {
-          background-color: var(--surface-container-high);
           color: var(--on-surface);
         }
         .predictions-dropdown {

@@ -1,9 +1,12 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { usePathname } from "next/navigation";
 
 export default function BackgroundOrbs() {
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
+  const isHome = pathname === "/";
 
   useEffect(() => {
     setMounted(true);
@@ -28,6 +31,34 @@ export default function BackgroundOrbs() {
         transition: 'background-color 0.3s ease'
       }}
     >
+      {/* South India Map Background, attached to the background animation */}
+      {isHome && (
+        <motion.div
+          animate={{
+            x: [0, 20, -20, 0],
+            y: [0, 15, -15, 0],
+            scale: [1, 1.02, 0.98, 1],
+          }}
+          transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
+          className="bg-map-element"
+          style={{
+            position: 'absolute',
+            left: '5%',
+            bottom: '10%',
+            width: '40vw',
+            height: '40vw',
+            maxWidth: '550px',
+            maxHeight: '550px',
+            backgroundImage: "url('/images/south_india_map_clean.png')",
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'left bottom',
+            backgroundSize: 'contain',
+            zIndex: -1,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       {/* 1. ORIGINAL BLURRED GLOWING ORBS FOR COLOR DEPTH */}
       <motion.div
         animate={{

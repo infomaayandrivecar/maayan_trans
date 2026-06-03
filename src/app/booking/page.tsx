@@ -93,6 +93,7 @@ export default function BookingWizard() {
       phone: Yup.string()
         .trim()
         .required("A valid phone number is required (min 10 digits).")
+        .matches(/^\d+$/, "Phone number must contain only digits.")
         .min(10, "A valid phone number is required (min 10 digits)."),
       email: Yup.string()
         .trim()
@@ -167,7 +168,8 @@ export default function BookingWizard() {
 
   const getReturnDateString = () => {
     if (!state.pickupDate) return "";
-    const pDate = new Date(state.pickupDate);
+    const [year, month, day] = state.pickupDate.split("-").map(Number);
+    const pDate = new Date(year, month - 1, day);
     pDate.setDate(pDate.getDate() + state.numberOfDays);
     return pDate.toLocaleDateString("en-US", {
       month: "short",
@@ -178,7 +180,8 @@ export default function BookingWizard() {
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -211,7 +214,7 @@ export default function BookingWizard() {
                   <div className="summary-trip-details">
                     <span className="summary-trip-type label-sm">{state.tripType}</span>
                     <span className="summary-journey-meta">
-                      {state.tripType === "Round Trip" ? `${state.numberOfDays} Days Journey` : `${state.distanceKm ? state.distanceKm : 0} km`}
+                      {(state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? `${state.numberOfDays} Days Journey` : `${state.distanceKm ? Number(state.distanceKm).toFixed(2) : "0.00"} km`}
                     </span>
                   </div>
                   <div className="route-destinations">
@@ -229,7 +232,7 @@ export default function BookingWizard() {
                       <span className="node-label">DEPARTURE</span>
                       <span className="node-value">{formatDisplayDate(state.pickupDate)}</span>
                     </div>
-                    {state.tripType === "Round Trip" && (
+                    {(state.tripType === "Round Trip" || state.tripType === "Outstation Trip") && (
                       <>
                         <div className="node-divider-line"></div>
                         <div className="destination-node">
@@ -259,7 +262,7 @@ export default function BookingWizard() {
               {/* Vehicle Cards Grid */}
               <div className="vehicle-grid">
                 {vehicles.map((v) => {
-                  const fare = calculateFare(v);
+                  const fare = calculateFare(v, false);
                   return (
                     <div
                       key={v.id}
@@ -281,9 +284,9 @@ export default function BookingWizard() {
 
                       <div className="vehicle-info-wrap">
                         <h3 className="title-md vehicle-title">{v.name}</h3>
-                        <div className="vehicle-price">₹{fare}/-</div>
+                        <div className="vehicle-price">₹{Math.round(fare).toLocaleString("en-IN")}/-</div>
                         <p className="vehicle-inclusions body-md">
-                          {state.distanceKm ? `${state.distanceKm} kms` : "0 kms"}. {v.features}
+                          {state.distanceKm ? `${Number(state.distanceKm).toFixed(2)} kms` : "0.00 kms"}. {v.features}
                         </p>
                         
                         <button
@@ -357,8 +360,9 @@ export default function BookingWizard() {
                             placeholder="+1 (555) 000-0000"
                             value={formik.values.phone}
                             onChange={(e) => {
-                              formik.handleChange(e);
-                              setPassengerInfo({ phoneNumber: e.target.value });
+                              const cleaned = e.target.value.replace(/\D/g, "");
+                              formik.setFieldValue("phone", cleaned);
+                              setPassengerInfo({ phoneNumber: cleaned });
                             }}
                             onBlur={formik.handleBlur}
                           />
@@ -456,21 +460,27 @@ export default function BookingWizard() {
                       </div>
                       <div className="ledger-row">
                         <span className="ledger-label">Distance</span>
-                        <span className="ledger-value">{state.distanceKm ? `${state.distanceKm} km` : "N/A"}</span>
+                        <span className="ledger-value">{state.distanceKm ? `${Number(state.distanceKm).toFixed(2)} km` : "N/A"}</span>
                       </div>
                       <div className="ledger-row">
                         <span className="ledger-label">Car Type</span>
                         <span className="ledger-value">{state.selectedVehicle.name}</span>
                       </div>
                       <div className="ledger-row">
-                        <span className="ledger-label">Driver Allowance</span>
+                        <span className="ledger-label">Trip Type</span>
+                        <span className="ledger-value">{state.tripType}</span>
+                      </div>
+                      <div className="ledger-row">
+                        <span className="ledger-label">Base Fare</span>
                         <span className="ledger-value">
-                          ₹{state.selectedVehicle.driverAllowancePerDay * (state.tripType === "Round Trip" ? state.numberOfDays : 1)}.00
+                          ₹{Math.round(calculateFare(state.selectedVehicle, false)).toLocaleString("en-IN")}
                         </span>
                       </div>
                       <div className="ledger-row">
-                        <span className="ledger-label">Trip Type</span>
-                        <span className="ledger-value">{state.tripType}</span>
+                        <span className="ledger-label">Driver Allowance</span>
+                        <span className="ledger-value">
+                          ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? Math.max(1, state.numberOfDays || 1) : 1)).toLocaleString("en-IN")}
+                        </span>
                       </div>
                     </div>
 
@@ -481,7 +491,7 @@ export default function BookingWizard() {
 
                     <div className="fare-total-row">
                       <span className="total-label">Total Fare</span>
-                      <span className="total-value">₹{calculateFare(state.selectedVehicle)}</span>
+                      <span className="total-value">₹{Math.round(calculateFare(state.selectedVehicle)).toLocaleString("en-IN")}</span>
                     </div>
 
                     <button
@@ -538,7 +548,7 @@ export default function BookingWizard() {
                   </div>
                   <div className="success-journey-fare">
                     <span className="fare-label font-bold text-primary">Total Fare: </span>
-                    <span className="fare-text font-bold text-lg">₹{state.bookingReceipt.totalFare}</span>
+                    <span className="fare-text font-bold text-lg">₹{Math.round(state.bookingReceipt.totalFare).toLocaleString("en-IN")}</span>
                   </div>
                 </div>
 
@@ -572,7 +582,7 @@ export default function BookingWizard() {
                         </tr>
                         <tr>
                           <td>Distance</td>
-                          <td>{state.bookingReceipt.distanceKm} km</td>
+                          <td>{Number(state.bookingReceipt.distanceKm).toFixed(2)} km</td>
                         </tr>
                         {state.bookingReceipt.tripInstructions && (
                           <tr>

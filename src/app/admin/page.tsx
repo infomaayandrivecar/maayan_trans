@@ -5,12 +5,14 @@ import {
   Lock, Mail, LogOut, Search, Calendar, Clock, User, Phone,
   MapPin, Navigation, IndianRupee, RefreshCw, AlertCircle,
   TrendingUp, Compass, HelpCircle, FileText, Printer, Download,
-  Edit3, Eye, ArrowLeft, X, Check, CheckCircle2, Activity
+  Edit3, Eye, ArrowLeft, X, Check, CheckCircle2, Activity, Settings,
+  MessageSquare, Trash2, Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
 import Header from "../components/Header";
 import DateTimePicker from "../components/DateTimePicker";
+import { useBooking } from "../context/BookingContext";
 
 interface Booking {
   id: string;
@@ -20,7 +22,7 @@ interface Booking {
   email_address: string;
   passengers_count: number;
   trip_instructions: string;
-  trip_type: "One Way" | "Round Trip";
+  trip_type: "One Way" | "Round Trip" | "Outstation Trip";
   pickup_location: string;
   dropoff_location: string;
   pickup_date: string;
@@ -74,7 +76,7 @@ export default function AdminPage() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
-  const [tripTypeFilter, setTripTypeFilter] = useState<"All" | "One Way" | "Round Trip">("All");
+  const [tripTypeFilter, setTripTypeFilter] = useState<"All" | "One Way" | "Round Trip" | "Outstation Trip">("All");
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
   // Pagination State
@@ -88,6 +90,92 @@ export default function AdminPage() {
   const [tripSheetSaving, setTripSheetSaving] = useState(false);
   const [tripSheetView, setTripSheetView] = useState<"edit" | "preview">("edit");
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Navigation & Settings Form State
+  const [activeTab, setActiveTab] = useState<"bookings" | "settings">("bookings");
+  const [settingsPhone, setSettingsPhone] = useState("");
+  const [settingsEmail, setSettingsEmail] = useState("");
+  const [settingsAddress, setSettingsAddress] = useState("");
+  const [settingsMarquee, setSettingsMarquee] = useState("");
+  const [settingsGst, setSettingsGst] = useState("");
+  const [settingsPan, setSettingsPan] = useState("");
+  const [settingsEmails, setSettingsEmails] = useState<string[]>(["info.maayandrivecar@gmail.com"]);
+  const [newEmailInput, setNewEmailInput] = useState("");
+  const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number }>>({});
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+
+  const { state, refreshSettings } = useBooking();
+
+  const loadAdminSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setSettingsPhone(data.company?.phone || "");
+        setSettingsEmail(data.company?.email || "");
+        setSettingsAddress(data.company?.address || "");
+        setSettingsMarquee(data.company?.marqueeText || "");
+        setSettingsGst(data.company?.gst || "");
+        setSettingsPan(data.company?.pan || "");
+        setSettingsEmails(data.company?.notificationEmails || ["info.maayandrivecar@gmail.com"]);
+        setSettingsVehicles(data.vehicles || {});
+      }
+    } catch (error) {
+      console.error("Failed to load admin settings:", error);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveAdminSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsSuccess(false);
+    try {
+      const payload = {
+        company: {
+          phone: settingsPhone,
+          email: settingsEmail,
+          address: settingsAddress,
+          marqueeText: settingsMarquee,
+          notificationEmails: settingsEmails,
+          gst: settingsGst,
+          pan: settingsPan
+        },
+        vehicles: settingsVehicles
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setSettingsSuccess(true);
+        if (refreshSettings) {
+          await refreshSettings();
+        }
+        setTimeout(() => setSettingsSuccess(false), 4000);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to save settings.");
+      }
+    } catch (error) {
+      console.error("Error saving admin settings:", error);
+      alert("Failed to save settings. Please try again.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session) {
+      loadAdminSettings();
+    }
+  }, [session]);
 
   useEffect(() => {
     // Check active session
@@ -196,7 +284,7 @@ export default function AdminPage() {
           ds_no: `DS-${randomDS}`,
           no_of_guests: `${booking.passengers_count} Adults`,
           booked_by: booking.full_name,
-          service_type: booking.trip_type === "Round Trip" ? "Outstation Round Trip" : "Outstation One Way",
+          service_type: (booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") ? "Outstation Round Trip" : "Outstation One Way",
           address: booking.pickup_location,
           date_out: booking.pickup_date,
           date_in: dateIn,
@@ -218,6 +306,31 @@ export default function AdminPage() {
       console.error("Unexpected error fetching trip sheet:", err);
     } finally {
       setTripSheetLoading(false);
+    }
+  };
+
+  const handlePrintTripSheet = () => {
+    if (!tripSheetData) return;
+    
+    // Store original document title and url
+    const originalTitle = document.title;
+    const originalUrl = window.location.href;
+
+    try {
+      // Set title to desired PDF filename (Booking ID_Customer Name)
+      const sanitizedName = tripSheetData.booked_by ? tripSheetData.booked_by.replace(/[^a-zA-Z0-9 ]/g, "").trim() : "Customer";
+      document.title = `${tripSheetData.booking_id}_${sanitizedName}`;
+
+      // Temporarily change URL to root to remove /admin from browser print footer
+      const newUrl = window.location.origin + "/";
+      window.history.replaceState({}, "", newUrl);
+
+      // Trigger print dialog
+      window.print();
+    } finally {
+      // Restore original document title and url
+      document.title = originalTitle;
+      window.history.replaceState({}, "", originalUrl);
     }
   };
 
@@ -357,10 +470,37 @@ export default function AdminPage() {
 
       {/* LOCAL STYLES FOR PRINTING TRIP SHEET */}
       <style jsx global>{`
+        /* Watermark and position context for print container */
+        .print-container {
+          position: relative;
+          overflow: hidden;
+          z-index: 1;
+        }
+        .print-container::before {
+          content: "MAAYAN TRANS";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg);
+          font-size: 100px;
+          font-weight: 800;
+          color: rgba(0, 0, 0, 0.04);
+          white-space: nowrap;
+          z-index: -1;
+          pointer-events: none;
+          font-family: var(--font-display);
+        }
+        
+        .print-container table td {
+          padding: 12px 16px !important;
+          line-height: 1.4 !important;
+          font-size: 11.5px !important;
+        }
+
         @media print {
           @page {
             size: portrait;
-            margin: 10mm;
+            margin: 0;
           }
           html, body, #__next, .landing-page {
             height: auto !important;
@@ -372,7 +512,7 @@ export default function AdminPage() {
             display: block !important;
           }
           /* Hide all sibling layout modules on print to completely free page flow */
-          header, .sticky-header, main.main-content, .no-print {
+          header, .sticky-header, main.main-content, .no-print, .bg-transport-container {
             display: none !important;
           }
           .print-modal-overlay {
@@ -403,8 +543,8 @@ export default function AdminPage() {
             max-width: 100% !important;
             border: none !important;
             box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            padding: 40px !important;
+            margin: 15mm auto !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
@@ -491,6 +631,10 @@ export default function AdminPage() {
             max-width: 200px !important;
           }
 
+          .card-lowest {
+            padding: 1.25rem 1rem !important;
+          }
+
           /* Booking card mobile styles */
           .booking-card-main {
             flex-direction: column !important;
@@ -504,12 +648,14 @@ export default function AdminPage() {
           .booking-card-meta {
             width: 100% !important;
             flex-direction: row !important;
+            flex-wrap: wrap !important;
             justify-content: space-between !important;
             align-items: center !important;
             text-align: left !important;
             border-top: 1px dashed var(--outline-variant);
             padding-top: 0.75rem;
             margin-top: 0.25rem;
+            gap: 0.5rem 1rem !important;
           }
           .booking-card-meta > div {
             margin-top: 0 !important;
@@ -520,6 +666,7 @@ export default function AdminPage() {
             align-items: center !important;
             flex: 1 1 auto !important;
             margin-right: 0.5rem !important;
+            flex-wrap: wrap !important;
           }
           .booking-card-meta > div:last-child {
             margin-top: 0 !important;
@@ -540,6 +687,12 @@ export default function AdminPage() {
         }
         [data-theme="dark"] .round-trip-card {
           border-left: 4px solid var(--primary) !important;
+        }
+        .outstation-trip-card {
+          border-left: 4px solid #7c3aed !important;
+        }
+        [data-theme="dark"] .outstation-trip-card {
+          border-left: 4px solid #a78bfa !important;
         }
         .one-way-card {
           border-left: 4px solid var(--on-surface-variant) !important;
@@ -562,6 +715,16 @@ export default function AdminPage() {
         }
         [data-theme="dark"] .trip-badge.round-trip {
           color: #ffb300 !important;
+        }
+        .trip-badge.outstation {
+          background-color: rgba(124, 58, 237, 0.1) !important;
+          color: #7c3aed !important;
+          border: 1px solid rgba(124, 58, 237, 0.2) !important;
+        }
+        [data-theme="dark"] .trip-badge.outstation {
+          background-color: rgba(167, 139, 250, 0.15) !important;
+          color: #a78bfa !important;
+          border: 1px solid rgba(167, 139, 250, 0.25) !important;
         }
         .trip-badge.one-way {
           background-color: rgba(17, 17, 17, 0.05) !important;
@@ -699,7 +862,7 @@ export default function AdminPage() {
           <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
 
             {/* Dashboard Header Banner */}
-            <div style={{
+            <div className="settings-header-banner" style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -709,20 +872,40 @@ export default function AdminPage() {
             }}>
               <div>
                 <h1 className="headline-md" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  Bookings Dashboard
+                  {activeTab === "bookings" ? "Bookings Dashboard" : "Admin Settings"}
                 </h1>
-                <p className="body-md">Manage and review all reservation requests.</p>
+                <p className="body-md">
+                  {activeTab === "bookings" ? "Manage and review all reservation requests." : "Configure company contact info and dynamic vehicle rates."}
+                </p>
               </div>
 
-              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              <div className="settings-header-actions" style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                {activeTab === "bookings" && (
+                  <button
+                    onClick={fetchBookings}
+                    className="btn-secondary"
+                    style={{ padding: "0.6rem 1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
+                    disabled={fetchLoading}
+                  >
+                    <RefreshCw size={14} className={fetchLoading ? "animate-spin" : ""} style={{ animation: fetchLoading ? "spin 1s linear infinite" : "none" }} />
+                    <span>Refresh</span>
+                  </button>
+                )}
+
                 <button
-                  onClick={fetchBookings}
+                  onClick={() => setActiveTab(activeTab === "bookings" ? "settings" : "bookings")}
                   className="btn-secondary"
-                  style={{ padding: "0.6rem 1.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
-                  disabled={fetchLoading}
+                  style={{
+                    padding: "0.6rem 1.2rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    borderColor: "var(--primary)",
+                    color: "var(--primary)"
+                  }}
                 >
-                  <RefreshCw size={14} className={fetchLoading ? "animate-spin" : ""} style={{ animation: fetchLoading ? "spin 1s linear infinite" : "none" }} />
-                  <span>Refresh</span>
+                  <Settings size={14} />
+                  <span>{activeTab === "bookings" ? "Settings" : "Back to Bookings"}</span>
                 </button>
 
                 <button
@@ -743,32 +926,368 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="features-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "2rem", gap: "1.5rem" }}>
+            {activeTab === "settings" ? (
+              <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "2rem", marginBottom: "3rem" }}>
+                {/* Save Success Alert */}
+                {settingsSuccess && (
+                  <div className="success-banner" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22c55e", borderRadius: "var(--radius-sm)", padding: "1rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <CheckCircle2 size={16} />
+                    <span>Settings saved successfully!</span>
+                  </div>
+                )}
+
+                <div className="settings-grid">
+                  {/* Left Column: Company Info */}
+                  <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
+                      Company Contact Settings
+                    </h3>
+                    
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-phone">Phone Number</label>
+                      <div className="input-wrapper">
+                        <Phone size={18} />
+                        <input
+                          id="settings-phone"
+                          type="text"
+                          value={settingsPhone}
+                          onChange={(e) => setSettingsPhone(e.target.value)}
+                          placeholder="e.g. +91 98942 21664"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-email">Email Address</label>
+                      <div className="input-wrapper">
+                        <Mail size={18} />
+                        <input
+                          id="settings-email"
+                          type="email"
+                          value={settingsEmail}
+                          onChange={(e) => setSettingsEmail(e.target.value)}
+                          placeholder="e.g. info.maayandrivecar@gmail.com"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-address">Address</label>
+                      <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
+                        <MapPin size={18} style={{ marginTop: "0.5rem" }} />
+                        <textarea
+                          id="settings-address"
+                          value={settingsAddress}
+                          onChange={(e) => setSettingsAddress(e.target.value)}
+                          placeholder="Enter physical address"
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            outline: "none",
+                            color: "var(--on-surface)",
+                            fontFamily: "var(--font-inter)",
+                            fontSize: "0.95rem",
+                            resize: "none"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-gst">GST Number</label>
+                      <div className="input-wrapper">
+                        <span style={{ margin: "0 0.25rem", color: "var(--on-surface-variant)", fontSize: "0.85rem", fontWeight: "600" }}>GST</span>
+                        <input
+                          id="settings-gst"
+                          type="text"
+                          value={settingsGst}
+                          onChange={(e) => setSettingsGst(e.target.value)}
+                          onBlur={saveAdminSettings}
+                          placeholder="e.g. 29MAAYN1234F1Z5"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-pan">PAN Number</label>
+                      <div className="input-wrapper">
+                        <span style={{ margin: "0 0.25rem", color: "var(--on-surface-variant)", fontSize: "0.85rem", fontWeight: "600" }}>PAN</span>
+                        <input
+                          id="settings-pan"
+                          type="text"
+                          value={settingsPan}
+                          onChange={(e) => setSettingsPan(e.target.value)}
+                          onBlur={saveAdminSettings}
+                          placeholder="e.g. MAAYN1234F"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label className="input-label" htmlFor="settings-marquee">Marquee Text Content</label>
+                      <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
+                        <MessageSquare size={18} style={{ marginTop: "0.5rem" }} />
+                        <textarea
+                          id="settings-marquee"
+                          value={settingsMarquee}
+                          onChange={(e) => setSettingsMarquee(e.target.value)}
+                          placeholder="Welcome messages (use '|' to separate scrolling banner spans)"
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            outline: "none",
+                            color: "var(--on-surface)",
+                            fontFamily: "var(--font-inter)",
+                            fontSize: "0.95rem",
+                            resize: "none"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container" style={{ marginTop: "1.5rem" }}>
+                      <label className="input-label">Booking Notification Emails</label>
+                      <span className="body-sm" style={{ color: "var(--on-surface-variant)", display: "block", marginBottom: "0.5rem", fontSize: "0.8rem" }}>
+                        Booking details will be sent to all email addresses configured below.
+                      </span>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        {settingsEmails.map((email, index) => (
+                          <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                            <div className="input-wrapper" style={{ flex: 1 }}>
+                              <Mail size={16} />
+                              <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => {
+                                  const updated = [...settingsEmails];
+                                  updated[index] = e.target.value;
+                                  setSettingsEmails(updated);
+                                }}
+                                placeholder="e.g. info.maayandrivecar@gmail.com"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => {
+                                const updated = settingsEmails.filter((_, idx) => idx !== index);
+                                setSettingsEmails(updated);
+                              }}
+                              style={{ 
+                                padding: "0.6rem", 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "center",
+                                borderRadius: "var(--radius-sm)",
+                                height: "42px",
+                                width: "42px",
+                                border: "1px solid var(--outline-variant)"
+                              }}
+                              title="Remove Email"
+                            >
+                              <Trash2 size={16} style={{ color: "#ef4444" }} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.75rem" }}>
+                        <div className="input-wrapper" style={{ flex: 1 }}>
+                          <Mail size={16} />
+                          <input
+                            type="email"
+                            value={newEmailInput}
+                            onChange={(e) => setNewEmailInput(e.target.value)}
+                            placeholder="Add new email address"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (newEmailInput && newEmailInput.trim()) {
+                                  if (!settingsEmails.includes(newEmailInput.trim())) {
+                                    setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
+                                  }
+                                  setNewEmailInput("");
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => {
+                            if (newEmailInput && newEmailInput.trim()) {
+                              if (!settingsEmails.includes(newEmailInput.trim())) {
+                                setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
+                              }
+                              setNewEmailInput("");
+                            }
+                          }}
+                          style={{ 
+                            padding: "0.6rem 1rem", 
+                            height: "42px", 
+                            whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                            borderRadius: "var(--radius-sm)"
+                          }}
+                        >
+                          <Plus size={16} />
+                          <span>Add</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Vehicle Rates */}
+                  <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
+                      Vehicle Fare Rates & Allowances
+                    </h3>
+
+                    {settingsLoading ? (
+                      <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}>
+                        <div className="spinner-small" style={{ width: "30px", height: "30px" }}></div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                        {Object.keys(settingsVehicles).map((vehicleKey) => {
+                          const vehicleData = settingsVehicles[vehicleKey];
+                          return (
+                            <div key={vehicleKey} className="settings-vehicle-row">
+                              <span className="label-sm" style={{ fontWeight: "700", textTransform: "uppercase", display: "block", marginBottom: "0.5rem", color: "var(--on-surface)" }}>
+                                {vehicleKey.replace("_", " ")}
+                              </span>
+                              <div className="settings-vehicle-grid">
+                                <div className="input-field-container">
+                                  <label className="input-label" style={{ fontSize: "0.75rem" }}>Rate per KM (₹)</label>
+                                  <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                    <IndianRupee size={14} />
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      value={vehicleData.ratePerKm}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        setSettingsVehicles(prev => ({
+                                          ...prev,
+                                          [vehicleKey]: { ...prev[vehicleKey], ratePerKm: val }
+                                        }));
+                                      }}
+                                      style={{ fontSize: "0.85rem" }}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="input-field-container">
+                                  <label className="input-label" style={{ fontSize: "0.75rem" }}>Driver Allowance (₹/Day)</label>
+                                  <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                    <IndianRupee size={14} />
+                                    <input
+                                      type="number"
+                                      value={vehicleData.driverAllowancePerDay}
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        setSettingsVehicles(prev => ({
+                                          ...prev,
+                                          [vehicleKey]: { ...prev[vehicleKey], driverAllowancePerDay: val }
+                                        }));
+                                      }}
+                                      style={{ fontSize: "0.85rem" }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Submit Row */}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
+                  <motion.button
+                    type="button"
+                    onClick={saveAdminSettings}
+                    className="btn-primary"
+                    disabled={settingsSaving}
+                    style={{ padding: "0.8rem 2.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {settingsSaving ? (
+                      <div className="spinner-small"></div>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        <span>Save Settings</span>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Quick Stats Grid */}
+                <div className="features-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "2rem", gap: "1.5rem" }}>
               <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{ width: "36px", height: "36px", marginBottom: "1rem" }}><FileText size={18} /></div>
+                <div className="feature-icon-wrap" style={{
+                  width: "36px",
+                  height: "36px",
+                  marginBottom: "1rem",
+                  background: "rgba(217, 119, 6, 0.1)",
+                  border: "1px solid rgba(217, 119, 6, 0.2)",
+                  color: "#d97706"
+                }}><FileText size={18} /></div>
                 <span className="input-label" style={{ fontSize: "0.65rem" }}>Total Requests</span>
                 <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{bookings.length}</h3>
               </div>
 
               <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{ width: "36px", height: "36px", marginBottom: "1rem", backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#22c55e" }}><TrendingUp size={18} /></div>
+                <div className="feature-icon-wrap" style={{
+                  width: "36px",
+                  height: "36px",
+                  marginBottom: "1rem",
+                  background: "rgba(34, 197, 94, 0.1)",
+                  border: "1px solid rgba(34, 197, 94, 0.2)",
+                  color: "#22c55e"
+                }}><TrendingUp size={18} /></div>
                 <span className="input-label" style={{ fontSize: "0.65rem" }}>Est. Gross Revenue</span>
                 <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem", color: "var(--primary)" }}>
-                  ₹{totalRevenue.toLocaleString("en-IN")}/-
+                  ₹{Math.round(totalRevenue).toLocaleString("en-IN")}/-
                 </h3>
               </div>
 
-
-
               <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{ width: "36px", height: "36px", marginBottom: "1rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}><CheckCircle2 size={18} /></div>
+                <div className="feature-icon-wrap" style={{
+                  width: "36px",
+                  height: "36px",
+                  marginBottom: "1rem",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  color: "#10b981"
+                }}><CheckCircle2 size={18} /></div>
                 <span className="input-label" style={{ fontSize: "0.65rem" }}>Completed Trips</span>
                 <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{completedTripsCount}</h3>
               </div>
 
               <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{ width: "36px", height: "36px", marginBottom: "1rem", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }}><Activity size={18} /></div>
+                <div className="feature-icon-wrap" style={{
+                  width: "36px",
+                  height: "36px",
+                  marginBottom: "1rem",
+                  background: "rgba(59, 130, 246, 0.1)",
+                  border: "1px solid rgba(59, 130, 246, 0.2)",
+                  color: "#3b82f6"
+                }}><Activity size={18} /></div>
                 <span className="input-label" style={{ fontSize: "0.65rem" }}>Active Trips</span>
                 <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{activeTripsCount}</h3>
               </div>
@@ -797,6 +1316,7 @@ export default function AdminPage() {
                     <option value="All">All Types</option>
                     <option value="One Way">One Way</option>
                     <option value="Round Trip">Round Trip</option>
+                    <option value="Outstation Trip">Outstation Trip</option>
                   </select>
                 </div>
               </div>
@@ -837,7 +1357,13 @@ export default function AdminPage() {
                   return (
                     <motion.div
                       key={booking.id}
-                      className={`card-lowest ${booking.trip_type === "Round Trip" ? "round-trip-card" : "one-way-card"}`}
+                      className={`card-lowest ${
+                        booking.trip_type === "Round Trip"
+                          ? "round-trip-card"
+                          : booking.trip_type === "Outstation Trip"
+                          ? "outstation-trip-card"
+                          : "one-way-card"
+                      }`}
                       style={{
                         padding: "1.25rem 1.5rem",
                         cursor: "pointer"
@@ -870,12 +1396,18 @@ export default function AdminPage() {
                             <span className={`status-badge ${(booking.status || "Pending").toLowerCase()}`}>
                               {booking.status || "Pending"}
                             </span>
-                            <span className={`trip-badge ${booking.trip_type === "Round Trip" ? "round-trip" : "one-way"}`}>
-                              {booking.trip_type}
+                            <span className={`trip-badge ${
+                              booking.trip_type === "Round Trip"
+                                ? "round-trip"
+                                : booking.trip_type === "Outstation Trip"
+                                ? "outstation"
+                                : "one-way"
+                            }`}>
+                              {booking.trip_type === "Outstation Trip" ? "Outstation" : booking.trip_type}
                             </span>
                           </div>
                           <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--primary)", marginTop: "0.2rem" }}>
-                            ₹{booking.total_fare.toLocaleString("en-IN")}/-
+                            ₹{Math.round(booking.total_fare).toLocaleString("en-IN")}/-
                           </div>
                         </div>
                       </div>
@@ -884,7 +1416,8 @@ export default function AdminPage() {
                       <div style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.75rem",
+                        flexWrap: "wrap",
+                        gap: "0.5rem 0.75rem",
                         marginTop: "1rem",
                         padding: "0.6rem 0.8rem",
                         backgroundColor: "var(--surface-container-low)",
@@ -920,11 +1453,11 @@ export default function AdminPage() {
                               <div>
                                 <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Parameters</h4>
                                 <p className="body-md"><strong>Pickup Date:</strong> {booking.pickup_date} at {booking.pickup_time}</p>
-                                {booking.trip_type === "Round Trip" && (
+                                {(booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") && (
                                   <p className="body-md"><strong>Duration:</strong> {booking.number_of_days} {booking.number_of_days === 1 ? "Day" : "Days"}</p>
                                 )}
                                 <p className="body-md"><strong>Vehicle:</strong> {booking.car_type}</p>
-                                <p className="body-md"><strong>Est. Distance:</strong> {booking.distance_km} km</p>
+                                <p className="body-md"><strong>Est. Distance:</strong> {Number(booking.distance_km).toFixed(2)} km</p>
                               </div>
 
                               <div>
@@ -1041,9 +1574,9 @@ export default function AdminPage() {
                             fontSize: "0.85rem",
                             fontWeight: "600",
                             borderRadius: "var(--radius-sm)",
-                            border: isCurrent ? "1px solid var(--primary-container)" : "none",
-                            background: isCurrent ? "var(--primary-container)" : "var(--surface-container-low)",
-                            color: isCurrent ? "#111" : "var(--on-surface)"
+                            border: isCurrent ? "1px solid var(--primary)" : "none",
+                            background: isCurrent ? "var(--primary)" : "var(--surface-container-low)",
+                            color: isCurrent ? "var(--on-primary)" : "var(--on-surface)"
                           }}
                         >
                           {pageNum}
@@ -1072,6 +1605,8 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         )}
@@ -1507,7 +2042,7 @@ export default function AdminPage() {
                         </button>
 
                         <button
-                          onClick={() => window.print()}
+                          onClick={handlePrintTripSheet}
                           className="btn-secondary"
                           style={{ padding: "0.5rem 1.2rem", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}
                         >
@@ -1516,7 +2051,7 @@ export default function AdminPage() {
                         </button>
 
                         <button
-                          onClick={() => window.print()}
+                          onClick={handlePrintTripSheet}
                           className="btn-primary"
                           style={{ padding: "0.5rem 1.5rem", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", background: "var(--primary-container)", boxShadow: "none" }}
                         >
@@ -1547,7 +2082,9 @@ export default function AdminPage() {
                               </div>
                               <div>
                                 <div style={{ fontFamily: "var(--font-display)", fontWeight: "800", fontSize: "16px", color: "#111", letterSpacing: "0.5px", textTransform: "uppercase", lineHeight: 1.2 }}>MAAYAN TRANS & SERVICES</div>
-                                <div style={{ fontSize: "10px", color: "#666", fontWeight: "600", letterSpacing: "0.5px", marginTop: "2px" }}>GSTIN: 29MAAYN1234F1Z5 | PAN: MAAYN1234F</div>
+                                <div style={{ fontSize: "10px", color: "#666", fontWeight: "600", letterSpacing: "0.5px", marginTop: "2px" }}>
+                                  GSTIN: {state.settings.company?.gst || "---"} | PAN: {state.settings.company?.pan || "---"}
+                                </div>
                               </div>
                             </div>
                             <div style={{ textAlign: "right" }}>
@@ -1689,6 +2226,18 @@ export default function AdminPage() {
                                 CUSTOMER / AUTH. SIGNATURE
                               </span>
                             </div>
+                          </div>
+
+                          {/* Custom Printed Footer */}
+                          <div style={{
+                            marginTop: "30px",
+                            textAlign: "center",
+                            fontSize: "10px",
+                            color: "#888",
+                            fontFamily: "var(--font-display)",
+                            letterSpacing: "1px"
+                          }}>
+                            www.maayantrans.com
                           </div>
 
                         </div>

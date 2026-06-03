@@ -33,7 +33,14 @@ export async function GET(request: NextRequest) {
       lng: data.result.geometry.location.lng,
     };
 
-    return NextResponse.json({ result });
+    return NextResponse.json(
+      { result },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=3600"
+        }
+      }
+    );
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },

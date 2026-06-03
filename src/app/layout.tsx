@@ -22,13 +22,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Maayan Trans & Services | Premium Inter-City Taxi",
+  title: "Maayan Trans & Services | Premium Inter-City Cab",
   description: "Experience premium inter-city travel with Maayan Trans & Services. Safe, reliable, and comfortable journeys with certified drivers and transparent pricing.",
   keywords: "intercity taxi, Coimbatore taxi, premium cab service, long distance travel, outstation cabs, Maayan Trans, reliable taxi",
   authors: [{ name: "Maayan Trans & Services" }],
   robots: "index, follow",
   openGraph: {
-    title: "Maayan Trans & Services | Premium Inter-City Taxi",
+    title: "Maayan Trans & Services | Premium Inter-City Cab",
     description: "Experience premium inter-city travel with Maayan Trans & Services. Certified drivers, comfortable fleet, and 24/7 support.",
     type: "website",
     locale: "en_IN",

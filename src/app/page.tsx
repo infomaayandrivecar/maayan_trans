@@ -83,20 +83,21 @@ export default function Home() {
             const { pickupDate } = this.parent;
             if (!pickupDate || !value) return true;
             const now = new Date();
-            const dateObj = new Date(pickupDate);
+            const [year, month, day] = pickupDate.split("-").map(Number);
             const [hours, minutes] = value.split(":").map(Number);
-            dateObj.setHours(hours, minutes, 0, 0);
+            const dateObj = new Date(year, month - 1, day, hours, minutes, 0, 0);
             const minValidTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes buffer
             return dateObj.getTime() >= minValidTime.getTime();
           }
         ),
       numberOfDays: Yup.number().when("tripType", {
-        is: "Round Trip",
+        is: (val: string) => val === "Round Trip" || val === "Outstation Trip",
         then: (schema) => schema.min(1, "Number of days must be at least 1").required("Number of days is required."),
         otherwise: (schema) => schema.notRequired(),
       }),
       phoneNumber: Yup.string()
         .required("Please enter a valid phone number (min 10 digits).")
+        .matches(/^\d+$/, "Phone number must contain only digits.")
         .min(10, "Please enter a valid phone number (min 10 digits)."),
     }),
     onSubmit: async (values) => {
@@ -114,7 +115,7 @@ export default function Home() {
 
       <main className="main-content">
         {/* HERO SECTION */}
-        <section className="hero-section" style={{ position: 'relative' }}>
+        <section className="hero-section" style={{ position: 'relative', overflow: 'hidden' }}>
           {/* Subtle animated background gradient */}
           <motion.div
             className="hero-bg-gradient"
@@ -178,7 +179,7 @@ export default function Home() {
             >
               <div className="booking-card card-container" style={{ boxShadow: 'var(--shadow-ambient)' }}>
                 {/* Tabs */}
-                <div className="booking-tabs">
+                <div className="booking-tabs" style={{ display: 'flex', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                   <button
                     type="button"
                     className={`tab-btn ${formik.values.tripType === "One Way" ? "active" : ""}`}
@@ -198,6 +199,16 @@ export default function Home() {
                     }}
                   >
                     Round Trip
+                  </button>
+                  <button
+                    type="button"
+                    className={`tab-btn ${formik.values.tripType === "Outstation Trip" ? "active" : ""}`}
+                    onClick={() => {
+                      setTripType("Outstation Trip");
+                      formik.setFieldValue("tripType", "Outstation Trip");
+                    }}
+                  >
+                    Outstation
                   </button>
                 </div>
 
@@ -256,7 +267,7 @@ export default function Home() {
                     </span>
                   )}
 
-                  <div className={formik.values.tripType === "Round Trip" ? "form-row-2" : "form-row-1"}>
+                  <div className={(formik.values.tripType === "Round Trip" || formik.values.tripType === "Outstation Trip") ? "form-row-2" : "form-row-1"}>
                     <div className="input-field-container">
                       <label htmlFor="phone-input" className="input-label">Phone Number</label>
                       <div className="input-wrapper">
@@ -268,8 +279,9 @@ export default function Home() {
                           placeholder="Enter phone number"
                           value={formik.values.phoneNumber}
                           onChange={(e) => {
-                            formik.handleChange(e);
-                            setPhoneNumber(e.target.value);
+                            const cleaned = e.target.value.replace(/\D/g, "");
+                            formik.setFieldValue("phoneNumber", cleaned);
+                            setPhoneNumber(cleaned);
                           }}
                           onBlur={formik.handleBlur}
                         />
@@ -279,7 +291,7 @@ export default function Home() {
                       )}
                     </div>
 
-                    {formik.values.tripType === "Round Trip" && (
+                    {(formik.values.tripType === "Round Trip" || formik.values.tripType === "Outstation Trip") && (
                       <div className="input-field-container" ref={daysDropdownRef} style={{ position: 'relative' }}>
                         <label className="input-label">Number of Days</label>
                         <div
@@ -393,17 +405,17 @@ export default function Home() {
               viewport={{ once: true, margin: "-100px" }}
               variants={fadeIn}
             >
-              <h2 className="headline-md section-title">Comprehensive Transportation Services</h2>
-              <p className="section-subtitle body-md">Whether you need a quick local ride or a long outstation journey, Maayan Trans delivers excellence.</p>
+              <span className="hero-badge label-sm" style={{ display: 'inline-block', marginBottom: '1.25rem', padding: '0.4rem 1.1rem' }}>Our Offerings</span>
+              <h2 className="headline-md section-title" style={{ fontWeight: 800 }}>Comprehensive Transportation Services</h2>
+              <p className="section-subtitle body-md" style={{ maxWidth: '600px', margin: '0.5rem auto 0 auto' }}>Whether you need a quick local ride or a long outstation journey, Maayan Trans delivers excellence.</p>
             </motion.div>
 
             <motion.div
-              className="features-grid"
+              className="services-grid"
               variants={staggerContainer}
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-50px" }}
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
             >
               {[
                 { icon: <Map size={28} />, title: "Outstation Taxi Services", desc: "Reliable outstation cabs for comfortable inter-city travel. Transparent billing with no hidden costs." },
@@ -413,12 +425,10 @@ export default function Home() {
               ].map((service, idx) => (
                 <motion.div
                   key={idx}
-                  className="feature-card card-lowest"
+                  className="feature-card"
                   variants={fadeIn}
-                  whileHover={{ y: -8, boxShadow: 'var(--shadow-ambient)' }}
-                  style={{ transition: 'box-shadow 0.3s ease, border-color 0.3s ease', border: '1px solid var(--outline-variant)' }}
                 >
-                  <div className="feature-icon-wrap" style={{ backgroundColor: 'var(--primary-container)', color: 'var(--on-primary-container)' }}>
+                  <div className="feature-icon-wrap">
                     {service.icon}
                   </div>
                   <h3 className="title-md feature-card-title">{service.title}</h3>

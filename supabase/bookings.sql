@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   email_address TEXT NOT NULL,
   passengers_count INT NOT NULL,
   trip_instructions TEXT,
-  trip_type TEXT NOT NULL CHECK (trip_type IN ('One Way', 'Round Trip')),
+  trip_type TEXT NOT NULL CHECK (trip_type IN ('One Way', 'Round Trip', 'Outstation Trip')),
   pickup_location TEXT NOT NULL,
   dropoff_location TEXT NOT NULL,
   pickup_date DATE NOT NULL,

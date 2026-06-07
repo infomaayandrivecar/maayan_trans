@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Inter } from "next/font/google";
+import { Manrope, Inter, Saira } from "next/font/google";
 import "./globals.css";
 import { BookingProvider } from "./context/BookingContext";
 import BackgroundOrbs from "./components/BackgroundOrbs";
@@ -14,6 +14,12 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+});
+
+const saira = Saira({
+  variable: "--font-saira",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 export const viewport: Viewport = {
@@ -43,7 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${inter.variable}`}>
+      <body className={`${manrope.variable} ${inter.variable} ${saira.variable}`}>
         <BookingProvider>
           <BackgroundOrbs />
           {children}

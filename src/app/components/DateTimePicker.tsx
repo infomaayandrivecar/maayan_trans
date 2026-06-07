@@ -9,6 +9,10 @@ interface DateTimePickerProps {
   pickupTime: string; // HH:MM (24h)
   setPickupDate: (date: string) => void;
   setPickupTime: (time: string) => void;
+  dateLabel?: string;
+  timeLabel?: string;
+  minDateTime?: string;
+  showDate?: boolean;
 }
 
 export default function DateTimePicker({
@@ -16,6 +20,10 @@ export default function DateTimePicker({
   pickupTime,
   setPickupDate,
   setPickupTime,
+  dateLabel,
+  timeLabel,
+  minDateTime,
+  showDate = true,
 }: DateTimePickerProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -23,12 +31,12 @@ export default function DateTimePicker({
   const datePickerRef = useRef<HTMLDivElement>(null);
   const timePickerRef = useRef<HTMLDivElement>(null);
 
-  const now = new Date();
-  const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const minValid = minDateTime ? new Date(minDateTime) : new Date(Date.now() + 30 * 60 * 1000);
+  const todayDateString = `${minValid.getFullYear()}-${String(minValid.getMonth() + 1).padStart(2, "0")}-${String(minValid.getDate()).padStart(2, "0")}`;
 
   // Calendar State
-  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(minValid.getMonth());
+  const [currentYear, setCurrentYear] = useState(minValid.getFullYear());
 
   // Time Picker State (Temporary state until "Confirm" is clicked)
   const [tempHour, setTempHour] = useState<number>(12);
@@ -42,9 +50,9 @@ export default function DateTimePicker({
     return `${year}-${m}-${d}`;
   };
 
-  // Helper: Get minimum valid time (30 minutes in the future)
+  // Helper: Get minimum valid time
   const getMinValidTime = () => {
-    return new Date(Date.now() + 30 * 60 * 1000);
+    return minValid;
   };
 
   // Convert 12h parameters to 24h string "HH:MM"
@@ -78,8 +86,7 @@ export default function DateTimePicker({
     if (period === "PM" && h12 !== 12) h24 += 12;
     if (period === "AM" && h12 === 12) h24 = 0;
 
-    const testDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h24, min, 0, 0);
-    const minValid = getMinValidTime();
+    const testDate = new Date(minValid.getFullYear(), minValid.getMonth(), minValid.getDate(), h24, min, 0, 0);
 
     return testDate.getTime() >= minValid.getTime();
   };
@@ -89,9 +96,6 @@ export default function DateTimePicker({
     dateStr: string,
     timeStr: string
   ): { date: string; time: string } => {
-    const now = new Date();
-    const minValid = new Date(now.getTime() + 30 * 60 * 1000);
-    
     // Local date string for the minimum valid date
     const minValidDateStr = `${minValid.getFullYear()}-${String(minValid.getMonth() + 1).padStart(2, "0")}-${String(minValid.getDate()).padStart(2, "0")}`;
     
@@ -186,16 +190,22 @@ export default function DateTimePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Lock background scroll when a picker is open
+  // Lock background scroll when a picker is open (mobile only to prevent off-screen cutoff on desktop)
   useEffect(() => {
-    if (showDatePicker || showTimePicker) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-    }
+    const handleScrollLock = () => {
+      const isMobile = typeof window !== "undefined" && window.innerWidth <= 576;
+      if ((showDatePicker || showTimePicker) && isMobile) {
+        document.body.style.overflow = "hidden";
+        document.documentElement.style.overflow = "hidden";
+      } else {
+        document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
+      }
+    };
+    handleScrollLock();
+    window.addEventListener("resize", handleScrollLock);
     return () => {
+      window.removeEventListener("resize", handleScrollLock);
       document.body.style.overflow = "";
       document.documentElement.style.overflow = "";
     };
@@ -310,101 +320,111 @@ export default function DateTimePicker({
     setTempPeriod(validated.period);
   };
 
+  const isOpen = showDatePicker || showTimePicker;
+
   return (
-    <div className="datetime-picker-row">
+    <div
+      className="datetime-picker-row"
+      style={{
+        ...(showDate === false ? { gridTemplateColumns: "1fr" } : {}),
+        zIndex: isOpen ? 130 : undefined,
+      }}
+    >
       {/* DATE PICKER FIELD */}
-      <div className="picker-wrapper" ref={datePickerRef}>
-        <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Date</label>
-        <div 
-          className={`custom-picker-trigger ${showDatePicker ? "active" : ""}`}
-          onClick={() => {
-            setShowDatePicker(!showDatePicker);
-            setShowTimePicker(false);
-          }}
-        >
-          <Calendar size={18} className="trigger-icon" />
-          <div className="trigger-text-wrapper">
-            <span className="trigger-value">{formatDisplayDate(pickupDate)}</span>
+      {showDate !== false && (
+        <div className="picker-wrapper" ref={datePickerRef}>
+          <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{dateLabel || "Pickup Date"}</label>
+          <div 
+            className={`custom-picker-trigger ${showDatePicker ? "active" : ""}`}
+            onClick={() => {
+              setShowDatePicker(!showDatePicker);
+              setShowTimePicker(false);
+            }}
+          >
+            <Calendar size={18} className="trigger-icon" />
+            <div className="trigger-text-wrapper">
+              <span className="trigger-value">{formatDisplayDate(pickupDate)}</span>
+            </div>
           </div>
+
+          <AnimatePresence>
+            {showDatePicker && (
+              <motion.div
+                key="datepicker-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="picker-backdrop"
+                onClick={() => setShowDatePicker(false)}
+              />
+            )}
+            {showDatePicker && (
+              <motion.div
+                key="datepicker-popover"
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="picker-popover date-popover card-lowest"
+              >
+                {/* Calendar Header */}
+                <div className="calendar-header">
+                  <button type="button" className="nav-arrow" onClick={handlePrevMonth} aria-label="Previous month">
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="calendar-title">
+                    {monthNames[currentMonth]} {currentYear}
+                  </span>
+                  <button type="button" className="nav-arrow" onClick={handleNextMonth} aria-label="Next month">
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Weekday Labels */}
+                <div className="weekday-labels">
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(label => (
+                    <span key={label} className="weekday-label">{label}</span>
+                  ))}
+                </div>
+
+                {/* Days Grid */}
+                <div className="days-grid">
+                  {calendarCells.map((day, idx) => {
+                    if (day === null) {
+                      return <div key={`empty-${idx}`} className="day-cell empty" />;
+                    }
+
+                    const cellDateString = formatDateISO(currentYear, currentMonth, day);
+                    const isSelected = pickupDate === cellDateString;
+                    
+                    // Check if cell is in the past
+                    const cellDate = new Date(currentYear, currentMonth, day);
+                    const todayStart = new Date(minValid.getFullYear(), minValid.getMonth(), minValid.getDate());
+                    const isPast = cellDate.getTime() < todayStart.getTime() ||
+                      (cellDate.getTime() === todayStart.getTime() && (minValid.getHours() > 23 || (minValid.getHours() === 23 && minValid.getMinutes() >= 30)));
+
+                    return (
+                      <button
+                        key={`day-${day}`}
+                        type="button"
+                        disabled={isPast}
+                        className={`day-cell ${isSelected ? "selected" : ""} ${isPast ? "disabled" : ""}`}
+                        onClick={() => handleDateSelect(day)}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-
-        <AnimatePresence>
-          {showDatePicker && (
-            <motion.div
-              key="datepicker-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="picker-backdrop"
-              onClick={() => setShowDatePicker(false)}
-            />
-          )}
-          {showDatePicker && (
-            <motion.div
-              key="datepicker-popover"
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="picker-popover date-popover card-lowest"
-            >
-              {/* Calendar Header */}
-              <div className="calendar-header">
-                <button type="button" className="nav-arrow" onClick={handlePrevMonth} aria-label="Previous month">
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="calendar-title">
-                  {monthNames[currentMonth]} {currentYear}
-                </span>
-                <button type="button" className="nav-arrow" onClick={handleNextMonth} aria-label="Next month">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              {/* Weekday Labels */}
-              <div className="weekday-labels">
-                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(label => (
-                  <span key={label} className="weekday-label">{label}</span>
-                ))}
-              </div>
-
-              {/* Days Grid */}
-              <div className="days-grid">
-                {calendarCells.map((day, idx) => {
-                  if (day === null) {
-                    return <div key={`empty-${idx}`} className="day-cell empty" />;
-                  }
-
-                  const cellDateString = formatDateISO(currentYear, currentMonth, day);
-                  const isSelected = pickupDate === cellDateString;
-                  
-                  // Check if cell is in the past
-                  const cellDate = new Date(currentYear, currentMonth, day);
-                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                  const isPast = cellDate.getTime() < todayStart.getTime() ||
-                    (cellDate.getTime() === todayStart.getTime() && (now.getHours() > 23 || (now.getHours() === 23 && now.getMinutes() >= 30)));
-
-                  return (
-                    <button
-                      key={`day-${day}`}
-                      type="button"
-                      disabled={isPast}
-                      className={`day-cell ${isSelected ? "selected" : ""} ${isPast ? "disabled" : ""}`}
-                      onClick={() => handleDateSelect(day)}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      )}
 
       {/* TIME PICKER FIELD */}
       <div className="picker-wrapper" ref={timePickerRef}>
-        <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Time</label>
+        <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{timeLabel || "Pickup Time"}</label>
         <div 
           className={`custom-picker-trigger ${showTimePicker ? "active" : ""}`}
           onClick={() => {
@@ -438,7 +458,7 @@ export default function DateTimePicker({
               transition={{ duration: 0.15 }}
               className="picker-popover time-popover card-lowest"
             >
-              <div className="time-picker-title">Select Pickup Time</div>
+              <div className="time-picker-title">Select {timeLabel || "Pickup Time"}</div>
               
               <div className="time-columns-container">
                 {/* Hours Column */}

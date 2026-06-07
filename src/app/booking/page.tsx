@@ -21,6 +21,7 @@ export default function BookingWizard() {
     setVehicle,
     setPassengerInfo,
     calculateFare,
+    getRoundTripHours,
     submitBooking,
     resetBooking,
   } = useBooking();
@@ -98,7 +99,7 @@ export default function BookingWizard() {
       email: Yup.string()
         .trim()
         .email("Please enter a valid email address.")
-        .required("Please enter a valid email address."),
+        .optional(),
       passengersCount: Yup.number()
         .min(1, "Number of passengers must be at least 1.")
         .max(15, "Number of passengers cannot exceed 15.")
@@ -166,7 +167,22 @@ export default function BookingWizard() {
     });
   };
 
+  const formatDisplayTime = (timeStr: string) => {
+    if (!timeStr) return "";
+    const [hStr, mStr] = timeStr.split(":");
+    const h24 = parseInt(hStr, 10);
+    const min = parseInt(mStr, 10);
+    if (isNaN(h24) || isNaN(min)) return "";
+    const period = h24 >= 12 ? "PM" : "AM";
+    let h12 = h24 % 12;
+    h12 = h12 === 0 ? 12 : h12;
+    return `${h12}:${String(min).padStart(2, "0")} ${period}`;
+  };
+
   const getReturnDateString = () => {
+    if (state.tripType === "Round Trip" && state.dropDate) {
+      return formatDisplayDate(state.dropDate) + (state.dropTime ? ` at ${formatDisplayTime(state.dropTime)}` : "");
+    }
     if (!state.pickupDate) return "";
     const [year, month, day] = state.pickupDate.split("-").map(Number);
     const pDate = new Date(year, month - 1, day);
@@ -214,7 +230,11 @@ export default function BookingWizard() {
                   <div className="summary-trip-details">
                     <span className="summary-trip-type label-sm">{state.tripType}</span>
                     <span className="summary-journey-meta">
-                      {(state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? `${state.numberOfDays} Days Journey` : `${state.distanceKm ? Number(state.distanceKm).toFixed(2) : "0.00"} km`}
+                      {state.tripType === "Round Trip"
+                        ? "1 Day Journey"
+                        : state.tripType === "Outstation Trip"
+                        ? `${state.numberOfDays} ${state.numberOfDays === 1 ? "Day" : "Days"} Journey`
+                        : `${state.distanceKm ? Number(state.distanceKm).toFixed(2) : "0.00"} km`}
                     </span>
                   </div>
                   <div className="route-destinations">
@@ -230,7 +250,10 @@ export default function BookingWizard() {
                     <div className="node-divider-line"></div>
                     <div className="destination-node">
                       <span className="node-label">DEPARTURE</span>
-                      <span className="node-value">{formatDisplayDate(state.pickupDate)}</span>
+                      <span className="node-value">
+                        {formatDisplayDate(state.pickupDate)}
+                        {state.pickupTime ? ` at ${formatDisplayTime(state.pickupTime)}` : ""}
+                      </span>
                     </div>
                     {(state.tripType === "Round Trip" || state.tripType === "Outstation Trip") && (
                       <>
@@ -285,8 +308,18 @@ export default function BookingWizard() {
                       <div className="vehicle-info-wrap">
                         <h3 className="title-md vehicle-title">{v.name}</h3>
                         <div className="vehicle-price">₹{Math.round(fare).toLocaleString("en-IN")}/-</div>
+                        {state.tripType === "Round Trip" && (
+                          <div className="fare-breakdown-details" style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            KM Charges: ₹{Math.round(fare - (getRoundTripHours() * (v.roundTripHourRate || 170))).toLocaleString("en-IN")} + Hour Charges: ₹{(getRoundTripHours() * (v.roundTripHourRate || 170)).toLocaleString("en-IN")} ({getRoundTripHours()} hrs)
+                          </div>
+                        )}
+                        {state.tripType === "Outstation Trip" && state.distanceKm !== null && (state.distanceKm * 2 < state.numberOfDays * (v.outstationMinKmPerDay || 250)) && (
+                          <div className="fare-breakdown-details" style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                            Minimum hours fare: ₹{Math.round(state.numberOfDays * (v.outstationHoursPerDay || 16) * (v.outstationHourRate || 170)).toLocaleString("en-IN")} ({state.numberOfDays * (v.outstationHoursPerDay || 16)} hrs min)
+                          </div>
+                        )}
                         <p className="vehicle-inclusions body-md">
-                          {state.distanceKm ? `${Number(state.distanceKm).toFixed(2)} kms` : "0.00 kms"}. {v.features}
+                          {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}. {v.features}
                         </p>
                         
                         <button
@@ -395,7 +428,7 @@ export default function BookingWizard() {
                       </div>
 
                       <div className="input-field-container">
-                        <label htmlFor="email" className="input-label">Email Address</label>
+                        <label htmlFor="email" className="input-label">Email Address (Optional)</label>
                         <div className="input-wrapper">
                           <input
                             type="email"
@@ -460,7 +493,9 @@ export default function BookingWizard() {
                       </div>
                       <div className="ledger-row">
                         <span className="ledger-label">Distance</span>
-                        <span className="ledger-value">{state.distanceKm ? `${Number(state.distanceKm).toFixed(2)} km` : "N/A"}</span>
+                        <span className="ledger-value">
+                          {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} km` : "N/A"}
+                        </span>
                       </div>
                       <div className="ledger-row">
                         <span className="ledger-label">Car Type</span>
@@ -471,22 +506,35 @@ export default function BookingWizard() {
                         <span className="ledger-value">{state.tripType}</span>
                       </div>
                       <div className="ledger-row">
-                        <span className="ledger-label">Base Fare</span>
+                        <span className="ledger-label">
+                          {state.tripType === "Round Trip" ? "KM Charges" : "Base Fare"}
+                          {state.tripType === "Outstation Trip" && state.distanceKm !== null && (state.distanceKm * 2 < state.numberOfDays * (state.selectedVehicle.outstationMinKmPerDay || 250)) && " (Min Hours)"}
+                        </span>
                         <span className="ledger-value">
-                          ₹{Math.round(calculateFare(state.selectedVehicle, false)).toLocaleString("en-IN")}
+                          ₹{Math.round(calculateFare(state.selectedVehicle, false) - (state.tripType === "Round Trip" ? getRoundTripHours() * (state.selectedVehicle.roundTripHourRate || 170) : 0)).toLocaleString("en-IN")}
                         </span>
                       </div>
+                      {state.tripType === "Round Trip" && (
+                        <div className="ledger-row">
+                          <span className="ledger-label">Hour Charges ({getRoundTripHours()} hrs)</span>
+                          <span className="ledger-value">₹{Math.round(getRoundTripHours() * (state.selectedVehicle.roundTripHourRate || 170)).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
                       <div className="ledger-row">
                         <span className="ledger-label">Driver Allowance</span>
                         <span className="ledger-value">
-                          ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? Math.max(1, state.numberOfDays || 1) : 1)).toLocaleString("en-IN")}
+                          ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * (state.tripType === "Outstation Trip" ? Math.max(1, state.numberOfDays || 1) : 1)).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
 
                     <div className="extra-charges-alert">
                       <h4 className="alert-title label-sm">Extra Fare Details</h4>
-                      <p className="alert-content body-md">For Extra Km & Hill Toll charges will be calculated extra during journey if applicable.</p>
+                      <p className="alert-content body-md">
+                        {state.tripType === "Outstation Trip"
+                          ? "For Extra Km, Outstation Allowance & Hill Toll charges will be calculated extra during journey if applicable."
+                          : "For Extra Km & Hill Toll charges will be calculated extra during journey if applicable."}
+                      </p>
                     </div>
 
                     <div className="fare-total-row">

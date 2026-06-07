@@ -12,17 +12,8 @@ export default function Footer() {
       <div className="footer-container">
         <div className="footer-brand-col">
           <div className="footer-logo">
-            <div className="logo-icon-wrap" style={{ background: 'transparent' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Premium automotive shield badge with monogram 'M' and sports car silhouette (Forced Dark Mode Colors for Footer) */}
-                <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="#ffb300" opacity="0.05" />
-                <circle cx="12" cy="12" r="10" stroke="#ffb300" strokeWidth="1.5" />
-                <path d="M8 12.5L9.8 9.5H14.2L16 12.5" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 13C5 13 6.5 12.2 12 12.2C17.5 12.2 19 13 19 13C19.5 13 20 13.5 20 14.2V16.8C20 17.5 19.5 18 19 18H5C4.5 18 4 17.5 4 16.8V14.2C4 13.5 4.5 13 5 13Z" fill="#ffb300" stroke="#ffb300" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M6 14.5L7.8 14.8" stroke="#111111" strokeWidth="2" strokeLinecap="round" />
-                <path d="M18 14.5L16.2 14.8" stroke="#111111" strokeWidth="2" strokeLinecap="round" />
-                <path d="M10 14.8L11 16.8L12 15.5L13 16.8L14 14.8" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            <div className="logo-icon-wrap" style={{ background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/logo_dark.png?v=3" alt="Maayan Trans Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
             </div>
             <span className="logo-text">Maayan Trans</span>
           </div>

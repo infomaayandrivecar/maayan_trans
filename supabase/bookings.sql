@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   full_name TEXT NOT NULL,
   phone_number TEXT NOT NULL,
-  email_address TEXT NOT NULL,
+  email_address TEXT,
   passengers_count INT NOT NULL,
   trip_instructions TEXT,
   trip_type TEXT NOT NULL CHECK (trip_type IN ('One Way', 'Round Trip', 'Outstation Trip')),
@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   car_type TEXT NOT NULL,
   distance_km NUMERIC NOT NULL,
   total_fare NUMERIC NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Active', 'Completed'))
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Active', 'Completed')),
+  driver_name TEXT,
+  driver_phone TEXT,
+  vehicle_no TEXT
 );
 
 -- Enable Row Level Security (RLS)
@@ -70,6 +73,7 @@ CREATE TABLE IF NOT EXISTS public.trip_sheets (
   car_allotted TEXT,
   parking_toll TEXT,
   standing_instructions TEXT,
+  service_city TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -84,4 +88,10 @@ CREATE POLICY "Allow authenticated full access" ON public.trip_sheets
   FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
+
+
+-- Migration for existing databases: run this to add the columns to bookings if they don't exist
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS driver_name TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS driver_phone TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS vehicle_no TEXT;
 

@@ -37,6 +37,8 @@ export default function Home() {
     setDropoff,
     setPickupDate,
     setPickupTime,
+    setDropDate,
+    setDropTime,
     setNumberOfDays,
     setPhoneNumber,
     calculateDistance,
@@ -65,6 +67,8 @@ export default function Home() {
       dropoff: state.dropoff,
       pickupDate: state.pickupDate,
       pickupTime: state.pickupTime,
+      dropDate: state.dropDate || "",
+      dropTime: state.dropTime || "",
       numberOfDays: state.numberOfDays,
       phoneNumber: state.phoneNumber || "",
     },
@@ -90,8 +94,25 @@ export default function Home() {
             return dateObj.getTime() >= minValidTime.getTime();
           }
         ),
+      dropTime: Yup.string().when("tripType", {
+        is: "Round Trip",
+        then: (schema) => schema
+          .required("Please select a drop-off time.")
+          .test(
+            "after-pickup",
+            "Drop-off time must be after pickup time.",
+            function (value) {
+              const { pickupDate, pickupTime } = this.parent;
+              if (!pickupDate || !pickupTime || !value) return true;
+              const pickupObj = new Date(`${pickupDate}T${pickupTime}`);
+              const dropObj = new Date(`${pickupDate}T${value}`);
+              return dropObj.getTime() > pickupObj.getTime();
+            }
+          ),
+        otherwise: (schema) => schema.notRequired(),
+      }),
       numberOfDays: Yup.number().when("tripType", {
-        is: (val: string) => val === "Round Trip" || val === "Outstation Trip",
+        is: "Outstation Trip",
         then: (schema) => schema.min(1, "Number of days must be at least 1").required("Number of days is required."),
         otherwise: (schema) => schema.notRequired(),
       }),
@@ -102,6 +123,10 @@ export default function Home() {
     }),
     onSubmit: async (values) => {
       setPhoneNumber(values.phoneNumber);
+      if (values.tripType === "Round Trip") {
+        setDropDate(values.pickupDate);
+        setDropTime(values.dropTime);
+      }
       const success = await calculateDistance();
       if (success) {
         router.push("/booking");
@@ -115,7 +140,7 @@ export default function Home() {
 
       <main className="main-content">
         {/* HERO SECTION */}
-        <section className="hero-section" style={{ position: 'relative', overflow: 'hidden' }}>
+        <section className="hero-section" style={{ position: 'relative' }}>
           {/* Subtle animated background gradient */}
           <motion.div
             className="hero-bg-gradient"
@@ -267,7 +292,7 @@ export default function Home() {
                     </span>
                   )}
 
-                  <div className={(formik.values.tripType === "Round Trip" || formik.values.tripType === "Outstation Trip") ? "form-row-2" : "form-row-1"}>
+                  <div className={(formik.values.tripType === "Outstation Trip" || formik.values.tripType === "Round Trip") ? "form-row-2" : "form-row-1"}>
                     <div className="input-field-container">
                       <label htmlFor="phone-input" className="input-label">Phone Number</label>
                       <div className="input-wrapper">
@@ -291,7 +316,30 @@ export default function Home() {
                       )}
                     </div>
 
-                    {(formik.values.tripType === "Round Trip" || formik.values.tripType === "Outstation Trip") && (
+                    {formik.values.tripType === "Round Trip" && (
+                      <div className="input-field-container">
+                        <DateTimePicker
+                          pickupDate={formik.values.pickupDate}
+                          pickupTime={formik.values.dropTime}
+                          setPickupDate={() => {}}
+                          setPickupTime={(time) => {
+                            setDropTime(time);
+                            formik.setFieldValue("dropTime", time);
+                          }}
+                          timeLabel="Drop Time"
+                          showDate={false}
+                          minDateTime={(formik.values.pickupDate && formik.values.pickupTime) ? `${formik.values.pickupDate}T${formik.values.pickupTime}` : undefined}
+                        />
+                        {/* Inline validator feedback for Drop Time picker validation errors */}
+                        {formik.touched.dropTime && formik.errors.dropTime && (
+                          <span className="field-error-message" style={{ marginTop: '0rem' }}>
+                            {formik.errors.dropTime}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {(formik.values.tripType === "Outstation Trip") && (
                       <div className="input-field-container" ref={daysDropdownRef} style={{ position: 'relative' }}>
                         <label className="input-label">Number of Days</label>
                         <div

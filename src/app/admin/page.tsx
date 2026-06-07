@@ -6,12 +6,13 @@ import {
   MapPin, Navigation, IndianRupee, RefreshCw, AlertCircle,
   TrendingUp, Compass, HelpCircle, FileText, Printer, Download,
   Edit3, Eye, ArrowLeft, X, Check, CheckCircle2, Activity, Settings,
-  MessageSquare, Trash2, Plus
+  MessageSquare, Trash2, Plus, Car
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
 import Header from "../components/Header";
 import DateTimePicker from "../components/DateTimePicker";
+import TimePicker from "../components/TimePicker";
 import { useBooking } from "../context/BookingContext";
 
 interface Booking {
@@ -19,7 +20,7 @@ interface Booking {
   created_at: string;
   full_name: string;
   phone_number: string;
-  email_address: string;
+  email_address?: string;
   passengers_count: number;
   trip_instructions: string;
   trip_type: "One Way" | "Round Trip" | "Outstation Trip";
@@ -32,6 +33,9 @@ interface Booking {
   distance_km: number;
   total_fare: number;
   status?: "Pending" | "Active" | "Completed";
+  driver_name?: string;
+  driver_phone?: string;
+  vehicle_no?: string;
 }
 
 interface TripSheet {
@@ -57,7 +61,76 @@ interface TripSheet {
   car_allotted: string;
   parking_toll: string;
   standing_instructions: string;
+  service_city: string;
 }
+
+const extractDistrictFromAddress = (address: string): string => {
+  if (!address) return "";
+  const parts = address.split(",").map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return "";
+  
+  const lastPart = parts[parts.length - 1].toLowerCase();
+  if (lastPart === "india") {
+    if (parts.length >= 3) {
+      return parts[parts.length - 3];
+    }
+    if (parts.length === 2) {
+      return parts[0];
+    }
+  } else {
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    }
+  }
+  return parts[0];
+};
+
+// Returns a HH:MM time string that is `minutes` earlier than the given HH:MM value
+const subtractMinutes = (time: string, minutes: number): string => {
+  const [h, m] = time.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return time;
+  const total = h * 60 + m - minutes;
+  const adjusted = ((total % 1440) + 1440) % 1440; // wrap around midnight
+  const hh = String(Math.floor(adjusted / 60)).padStart(2, "0");
+  const mm = String(adjusted % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+// Formats a HH:MM 24-hour time string into a 12-hour AM/PM string
+const formatTimeTo12Hour = (time24: string): string => {
+  if (!time24) return "";
+  const parts = time24.split(":");
+  if (parts.length < 2) return time24;
+  const h24 = parseInt(parts[0], 10);
+  const min = parseInt(parts[1], 10);
+  if (isNaN(h24) || isNaN(min)) return time24;
+  const period = h24 >= 12 ? "PM" : "AM";
+  let h12 = h24 % 12;
+  h12 = h12 === 0 ? 12 : h12;
+  return `${String(h12).padStart(2, "0")}:${String(min).padStart(2, "0")} ${period}`;
+};
+const VEHICLE_TYPES: Record<string, { label: string; keys: string[] }> = {
+  hatchback: {
+    label: "Hatchback",
+    keys: ["hatchback"]
+  },
+  sedan: {
+    label: "Sedan",
+    keys: ["sedan"]
+  },
+  premium_sedan: {
+    label: "Premium Sedan",
+    keys: ["premium_sedan"]
+  },
+  suv: {
+    label: "SUV",
+    keys: ["suv"]
+  },
+  premium_suv: {
+    label: "Premium SUV",
+    keys: ["premium_suv"]
+  }
+};
 
 export default function AdminPage() {
   const [session, setSession] = useState<any>(null);
@@ -91,8 +164,24 @@ export default function AdminPage() {
   const [tripSheetView, setTripSheetView] = useState<"edit" | "preview">("edit");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Notify Customer Modal State
+  const [notifyBooking, setNotifyBooking] = useState<Booking | null>(null);
+  const [notifyVehicleType, setNotifyVehicleType] = useState("");
+  const [notifyVehicleNumber, setNotifyVehicleNumber] = useState("");
+  const [notifyDriverName, setNotifyDriverName] = useState("");
+  const [notifyDriverPhone, setNotifyDriverPhone] = useState("");
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notifySaving, setNotifySaving] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   // Navigation & Settings Form State
   const [activeTab, setActiveTab] = useState<"bookings" | "settings">("bookings");
+  const [selectedVehicleType, setSelectedVehicleType] = useState<string | null>(null);
   const [settingsPhone, setSettingsPhone] = useState("");
   const [settingsEmail, setSettingsEmail] = useState("");
   const [settingsAddress, setSettingsAddress] = useState("");
@@ -101,10 +190,14 @@ export default function AdminPage() {
   const [settingsPan, setSettingsPan] = useState("");
   const [settingsEmails, setSettingsEmails] = useState<string[]>(["info.maayandrivecar@gmail.com"]);
   const [newEmailInput, setNewEmailInput] = useState("");
-  const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number }>>({});
+  const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number; oneWayMinKmPerHour?: number; oneWayHourRate?: number; roundTripHourRate?: number; outstationHourRate?: number; outstationMinKmPerDay?: number; outstationHoursPerDay?: number; }>>({}); 
+  const [settingsMinKmOneWay, setSettingsMinKmOneWay] = useState<number>(5);
+  const [settingsMinKmRoundTrip, setSettingsMinKmRoundTrip] = useState<number>(5);
+  const [settingsMinKmOutstation, setSettingsMinKmOutstation] = useState<number>(100);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
+
 
   const { state, refreshSettings } = useBooking();
 
@@ -122,6 +215,9 @@ export default function AdminPage() {
         setSettingsPan(data.company?.pan || "");
         setSettingsEmails(data.company?.notificationEmails || ["info.maayandrivecar@gmail.com"]);
         setSettingsVehicles(data.vehicles || {});
+        setSettingsMinKmOneWay(data.company?.minKmOneWay !== undefined ? Number(data.company.minKmOneWay) : 5);
+        setSettingsMinKmRoundTrip(data.company?.minKmRoundTrip !== undefined ? Number(data.company.minKmRoundTrip) : 5);
+        setSettingsMinKmOutstation(data.company?.minKmOutstation !== undefined ? Number(data.company.minKmOutstation) : 100);
       }
     } catch (error) {
       console.error("Failed to load admin settings:", error);
@@ -142,7 +238,10 @@ export default function AdminPage() {
           marqueeText: settingsMarquee,
           notificationEmails: settingsEmails,
           gst: settingsGst,
-          pan: settingsPan
+          pan: settingsPan,
+          minKmOneWay: settingsMinKmOneWay,
+          minKmRoundTrip: settingsMinKmRoundTrip,
+          minKmOutstation: settingsMinKmOutstation
         },
         vehicles: settingsVehicles
       };
@@ -153,7 +252,11 @@ export default function AdminPage() {
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
+      if (res.status === 207) {
+        // Partial success: saved locally but DB sync failed
+        const errData = await res.json();
+        alert(errData.error || "Settings saved locally but could not sync to database. Please check connection.");
+      } else if (res.ok) {
         setSettingsSuccess(true);
         if (refreshSettings) {
           await refreshSettings();
@@ -170,6 +273,8 @@ export default function AdminPage() {
       setSettingsSaving(false);
     }
   };
+
+
 
   useEffect(() => {
     if (session) {
@@ -263,11 +368,16 @@ export default function AdminPage() {
       }
 
       if (data) {
-        setTripSheetData(data);
+        setTripSheetData({
+          ...data,
+          service_city: data.service_city || extractDistrictFromAddress(booking.pickup_location)
+        });
       } else {
         // Initialize default Trip Sheet
-        const randomSerial = Math.floor(100000 + Math.random() * 900000).toString();
-        const randomDS = Math.floor(10000 + Math.random() * 90000).toString();
+        const idParts = booking.id ? booking.id.split("-") : [];
+        const dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
+        const generatedDS = `DS-${dsSuffix}`;
+        const generatedSerial = `TS-${dsSuffix}`;
 
         // Calculate a default end date
         let dateIn = booking.pickup_date;
@@ -279,12 +389,12 @@ export default function AdminPage() {
 
         setTripSheetData({
           booking_id: booking.id,
-          serial_no: randomSerial,
+          serial_no: generatedSerial,
           organisation: "",
-          ds_no: `DS-${randomDS}`,
+          ds_no: generatedDS,
           no_of_guests: `${booking.passengers_count} Adults`,
           booked_by: booking.full_name,
-          service_type: (booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") ? "Outstation Round Trip" : "Outstation One Way",
+          service_type: booking.trip_type,
           address: booking.pickup_location,
           date_out: booking.pickup_date,
           date_in: dateIn,
@@ -292,14 +402,15 @@ export default function AdminPage() {
           kms_in: 0,
           time_out: booking.pickup_time,
           time_in: "",
-          reporting_time: "07:00",
+          reporting_time: booking.pickup_time || "07:00",
           chauffeur_name: "",
           chauffeur_phone: "",
-          vehicle_start_time: "07:30",
+          vehicle_start_time: booking.pickup_time ? subtractMinutes(booking.pickup_time, 30) : "06:30",
           vehicle_no: "",
           car_allotted: booking.car_type,
           parking_toll: "",
-          standing_instructions: booking.trip_instructions || "Local Run / Outstation Travel"
+          standing_instructions: booking.trip_instructions || "",
+          service_city: extractDistrictFromAddress(booking.pickup_location)
         });
       }
     } catch (err) {
@@ -374,6 +485,221 @@ export default function AdminPage() {
     } catch (err: any) {
       alert("Error updating status: " + (err.message || err));
     }
+  };
+
+  const openNotifyModal = async (booking: Booking) => {
+    setNotifyBooking(booking);
+    setNotifyVehicleType(booking.car_type || "");
+    setNotifyVehicleNumber(booking.vehicle_no || "");
+    setNotifyDriverName(booking.driver_name || "");
+    setNotifyDriverPhone(booking.driver_phone || "");
+    setNotifyLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("trip_sheets")
+        .select("chauffeur_name, chauffeur_phone, vehicle_no, car_allotted")
+        .eq("booking_id", booking.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error loading trip sheet for notification:", error.message);
+      }
+
+      if (data) {
+        if (data.car_allotted) setNotifyVehicleType(data.car_allotted);
+        if (data.vehicle_no) setNotifyVehicleNumber(data.vehicle_no);
+        if (data.chauffeur_name) setNotifyDriverName(data.chauffeur_name);
+        if (data.chauffeur_phone) setNotifyDriverPhone(data.chauffeur_phone);
+      }
+    } catch (err) {
+      console.error("Unexpected error loading trip sheet for notification:", err);
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
+
+  const saveNotifyDetails = async (booking: Booking, quiet = false) => {
+    setNotifySaving(true);
+    try {
+      // 1. Update public.bookings table with driver and vehicle info
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({
+          car_type: notifyVehicleType,
+          driver_name: notifyDriverName,
+          driver_phone: notifyDriverPhone,
+          vehicle_no: notifyVehicleNumber
+        })
+        .eq("id", booking.id);
+
+      if (bookingError) {
+        alert("Error saving notification details to booking record: " + bookingError.message);
+        return false;
+      }
+
+      // 2. Fetch current trip sheet (if exists) to prepare trip sheet upsert
+      const { data, error } = await supabase
+        .from("trip_sheets")
+        .select("*")
+        .eq("booking_id", booking.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error loading trip sheet for notify save:", error.message);
+      }
+
+      let updatedTripSheet: TripSheet;
+
+      if (data) {
+        updatedTripSheet = {
+          ...data,
+          car_allotted: notifyVehicleType,
+          vehicle_no: notifyVehicleNumber,
+          chauffeur_name: notifyDriverName,
+          chauffeur_phone: notifyDriverPhone,
+          service_city: data.service_city || extractDistrictFromAddress(booking.pickup_location)
+        };
+      } else {
+        const idParts = booking.id ? booking.id.split("-") : [];
+        const dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
+        const generatedDS = `DS-${dsSuffix}`;
+        const generatedSerial = `TS-${dsSuffix}`;
+
+        let dateIn = booking.pickup_date;
+        try {
+          const dateObj = new Date(booking.pickup_date);
+          dateObj.setDate(dateObj.getDate() + (booking.number_of_days - 1));
+          dateIn = dateObj.toISOString().split("T")[0];
+        } catch (e) { }
+
+        updatedTripSheet = {
+          booking_id: booking.id,
+          serial_no: generatedSerial,
+          organisation: "",
+          ds_no: generatedDS,
+          no_of_guests: `${booking.passengers_count} Adults`,
+          booked_by: booking.full_name,
+          service_type: booking.trip_type,
+          address: booking.pickup_location,
+          date_out: booking.pickup_date,
+          date_in: dateIn,
+          kms_out: 0,
+          kms_in: 0,
+          time_out: booking.pickup_time,
+          time_in: "",
+          reporting_time: booking.pickup_time || "07:00",
+          chauffeur_name: notifyDriverName,
+          chauffeur_phone: notifyDriverPhone,
+          vehicle_start_time: booking.pickup_time ? subtractMinutes(booking.pickup_time, 30) : "06:30",
+          vehicle_no: notifyVehicleNumber,
+          car_allotted: notifyVehicleType,
+          parking_toll: "",
+          standing_instructions: booking.trip_instructions || "",
+          service_city: extractDistrictFromAddress(booking.pickup_location)
+        };
+      }
+
+      // 3. Upsert to public.trip_sheets table
+      const { error: upsertError } = await supabase
+        .from("trip_sheets")
+        .upsert(updatedTripSheet);
+
+      if (upsertError) {
+        alert("Error saving notification details to trip sheet: " + upsertError.message);
+        return false;
+      } else {
+        // Update local React bookings list state so the details update on the dashboard instantly
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === booking.id
+              ? {
+                  ...b,
+                  car_type: notifyVehicleType,
+                  driver_name: notifyDriverName,
+                  driver_phone: notifyDriverPhone,
+                  vehicle_no: notifyVehicleNumber
+                }
+              : b
+          )
+        );
+
+        if (tripSheetData && tripSheetData.booking_id === booking.id) {
+          setTripSheetData(updatedTripSheet);
+        }
+        if (!quiet) {
+          showToast("Customer notification details saved successfully!");
+        }
+        return true;
+      }
+    } catch (err: any) {
+      alert("Error saving details: " + (err.message || err));
+      return false;
+    } finally {
+      setNotifySaving(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!notifyBooking) return;
+    
+    // Save notify details quietly before sending
+    await saveNotifyDetails(notifyBooking, true);
+
+    const phone = notifyBooking.phone_number.replace(/\D/g, "");
+    const fullPhone = phone.length === 10 ? `91${phone}` : phone;
+
+    // Format pickup date and time for cleaner presentation
+    let formattedDateTime = `${notifyBooking.pickup_date} at ${notifyBooking.pickup_time}`;
+    try {
+      const dateParts = notifyBooking.pickup_date.split("-");
+      if (dateParts.length === 3) {
+        const year = dateParts[0];
+        const monthIndex = parseInt(dateParts[1], 10) - 1;
+        const day = parseInt(dateParts[2], 10);
+        
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthStr = months[monthIndex] || dateParts[1];
+        
+        let timeStr = notifyBooking.pickup_time;
+        const timeParts = timeStr.split(":");
+        if (timeParts.length >= 2) {
+          let hours = parseInt(timeParts[0], 10);
+          const minutes = timeParts[1];
+          const ampm = hours >= 12 ? "PM" : "AM";
+          hours = hours % 12;
+          hours = hours ? hours : 12;
+          timeStr = `${hours}:${minutes} ${ampm}`;
+        }
+        
+        formattedDateTime = `${day.toString().padStart(2, '0')} ${monthStr} ${year}, ${timeStr}`;
+      }
+    } catch (e) {
+      console.error("Error formatting date/time for WhatsApp:", e);
+    }
+
+    const companyPhone = settingsPhone || "+91 98942 21664";
+    const companyEmail = settingsEmail || "info.maayandrivecar@gmail.com";
+
+    const message = `*Booking Confirmed!*\n\n` +
+      `Hello ${notifyBooking.full_name},\n\n` +
+      `Thank you for booking with *Maayan Trans & Services*.\n\n` +
+      `Your driver and vehicle have been assigned.\n\n` +
+      `*Assigned Vehicle*\n` +
+      `• Type: ${notifyVehicleType || "Assigned Soon"}\n` +
+      `• Number: ${notifyVehicleNumber || "Assigned Soon"}\n\n` +
+      `*Assigned Driver*\n` +
+      `• Name: ${notifyDriverName || "Assigned Soon"}\n` +
+      `• Mobile: ${notifyDriverPhone || "Assigned Soon"}\n\n` +
+      `*Journey Information*\n` +
+      `• Pickup: ${notifyBooking.pickup_location}\n` +
+      `• Drop-off: ${notifyBooking.dropoff_location}\n` +
+      `• Date & Time: ${formattedDateTime}\n\n` +
+      `Have a pleasant and safe journey. If you require any support, please contact us at ${companyPhone} or ${companyEmail}.\n\n` +
+      `Thank you for choosing *Maayan Trans & Services*.`;
+    
+    const url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
   };
 
   // Calculation helpers
@@ -928,287 +1254,508 @@ export default function AdminPage() {
 
             {activeTab === "settings" ? (
               <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "2rem", marginBottom: "3rem" }}>
-                {/* Save Success Alert */}
-                {settingsSuccess && (
-                  <div className="success-banner" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22c55e", borderRadius: "var(--radius-sm)", padding: "1rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Settings saved successfully!</span>
-                  </div>
-                )}
+                {/* Banners Row */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {/* Save Success Alert */}
+                  {settingsSuccess && (
+                    <div className="success-banner" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22c55e", borderRadius: "var(--radius-sm)", padding: "1rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <CheckCircle2 size={16} />
+                      <span>Settings saved and synced to database successfully!</span>
+                    </div>
+                  )}
 
-                <div className="settings-grid">
+                </div>
+
+                    <div className="settings-grid">
                   {/* Left Column: Company Info */}
-                  <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                    <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
-                      Company Contact Settings
-                    </h3>
-                    
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-phone">Phone Number</label>
-                      <div className="input-wrapper">
-                        <Phone size={18} />
-                        <input
-                          id="settings-phone"
-                          type="text"
-                          value={settingsPhone}
-                          onChange={(e) => setSettingsPhone(e.target.value)}
-                          placeholder="e.g. +91 98942 21664"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-email">Email Address</label>
-                      <div className="input-wrapper">
-                        <Mail size={18} />
-                        <input
-                          id="settings-email"
-                          type="email"
-                          value={settingsEmail}
-                          onChange={(e) => setSettingsEmail(e.target.value)}
-                          placeholder="e.g. info.maayandrivecar@gmail.com"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-address">Address</label>
-                      <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
-                        <MapPin size={18} style={{ marginTop: "0.5rem" }} />
-                        <textarea
-                          id="settings-address"
-                          value={settingsAddress}
-                          onChange={(e) => setSettingsAddress(e.target.value)}
-                          placeholder="Enter physical address"
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            background: "transparent",
-                            border: "none",
-                            outline: "none",
-                            color: "var(--on-surface)",
-                            fontFamily: "var(--font-inter)",
-                            fontSize: "0.95rem",
-                            resize: "none"
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-gst">GST Number</label>
-                      <div className="input-wrapper">
-                        <span style={{ margin: "0 0.25rem", color: "var(--on-surface-variant)", fontSize: "0.85rem", fontWeight: "600" }}>GST</span>
-                        <input
-                          id="settings-gst"
-                          type="text"
-                          value={settingsGst}
-                          onChange={(e) => setSettingsGst(e.target.value)}
-                          onBlur={saveAdminSettings}
-                          placeholder="e.g. 29MAAYN1234F1Z5"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-pan">PAN Number</label>
-                      <div className="input-wrapper">
-                        <span style={{ margin: "0 0.25rem", color: "var(--on-surface-variant)", fontSize: "0.85rem", fontWeight: "600" }}>PAN</span>
-                        <input
-                          id="settings-pan"
-                          type="text"
-                          value={settingsPan}
-                          onChange={(e) => setSettingsPan(e.target.value)}
-                          onBlur={saveAdminSettings}
-                          placeholder="e.g. MAAYN1234F"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container">
-                      <label className="input-label" htmlFor="settings-marquee">Marquee Text Content</label>
-                      <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
-                        <MessageSquare size={18} style={{ marginTop: "0.5rem" }} />
-                        <textarea
-                          id="settings-marquee"
-                          value={settingsMarquee}
-                          onChange={(e) => setSettingsMarquee(e.target.value)}
-                          placeholder="Welcome messages (use '|' to separate scrolling banner spans)"
-                          rows={3}
-                          style={{
-                            width: "100%",
-                            background: "transparent",
-                            border: "none",
-                            outline: "none",
-                            color: "var(--on-surface)",
-                            fontFamily: "var(--font-inter)",
-                            fontSize: "0.95rem",
-                            resize: "none"
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="input-field-container" style={{ marginTop: "1.5rem" }}>
-                      <label className="input-label">Booking Notification Emails</label>
-                      <span className="body-sm" style={{ color: "var(--on-surface-variant)", display: "block", marginBottom: "0.5rem", fontSize: "0.8rem" }}>
-                        Booking details will be sent to all email addresses configured below.
-                      </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                    <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                      <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
+                        Company Contact Settings
+                      </h3>
                       
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {settingsEmails.map((email, index) => (
-                          <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                            <div className="input-wrapper" style={{ flex: 1 }}>
-                              <Mail size={16} />
-                              <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => {
-                                  const updated = [...settingsEmails];
-                                  updated[index] = e.target.value;
-                                  setSettingsEmails(updated);
-                                }}
-                                placeholder="e.g. info.maayandrivecar@gmail.com"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => {
-                                const updated = settingsEmails.filter((_, idx) => idx !== index);
-                                setSettingsEmails(updated);
-                              }}
-                              style={{ 
-                                padding: "0.6rem", 
-                                display: "flex", 
-                                alignItems: "center", 
-                                justifyContent: "center",
-                                borderRadius: "var(--radius-sm)",
-                                height: "42px",
-                                width: "42px",
-                                border: "1px solid var(--outline-variant)"
-                              }}
-                              title="Remove Email"
-                            >
-                              <Trash2 size={16} style={{ color: "#ef4444" }} />
-                            </button>
-                          </div>
-                        ))}
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-phone">Phone Number</label>
+                        <div className="input-wrapper">
+                          <Phone size={18} />
+                          <input
+                            id="settings-phone"
+                            type="text"
+                            value={settingsPhone}
+                            onChange={(e) => setSettingsPhone(e.target.value)}
+                            placeholder="e.g. +91 98942 21664"
+                          />
+                        </div>
                       </div>
 
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.75rem" }}>
-                        <div className="input-wrapper" style={{ flex: 1 }}>
-                          <Mail size={16} />
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-email">Email Address</label>
+                        <div className="input-wrapper">
+                          <Mail size={18} />
                           <input
+                            id="settings-email"
                             type="email"
-                            value={newEmailInput}
-                            onChange={(e) => setNewEmailInput(e.target.value)}
-                            placeholder="Add new email address"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (newEmailInput && newEmailInput.trim()) {
-                                  if (!settingsEmails.includes(newEmailInput.trim())) {
-                                    setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
-                                  }
-                                  setNewEmailInput("");
-                                }
-                              }
+                            value={settingsEmail}
+                            onChange={(e) => setSettingsEmail(e.target.value)}
+                            placeholder="e.g. info.maayandrivecar@gmail.com"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-address">Address</label>
+                        <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
+                          <MapPin size={18} style={{ marginTop: "0.3rem" }} />
+                          <textarea
+                            id="settings-address"
+                            value={settingsAddress}
+                            onChange={(e) => setSettingsAddress(e.target.value)}
+                            placeholder="e.g. Company Address"
+                            rows={3}
+                            style={{ 
+                              width: "100%", 
+                              border: "none", 
+                              outline: "none", 
+                              background: "transparent",
+                              color: "var(--on-surface)",
+                              fontFamily: "inherit",
+                              resize: "vertical"
                             }}
                           />
                         </div>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() => {
-                            if (newEmailInput && newEmailInput.trim()) {
-                              if (!settingsEmails.includes(newEmailInput.trim())) {
-                                setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-gst">GST Number</label>
+                        <div className="input-wrapper">
+                          <input
+                            id="settings-gst"
+                            type="text"
+                            value={settingsGst}
+                            onChange={(e) => setSettingsGst(e.target.value)}
+                            placeholder="e.g. 29MAAYN1234F1Z5"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-pan">PAN Number</label>
+                        <div className="input-wrapper">
+                          <input
+                            id="settings-pan"
+                            type="text"
+                            value={settingsPan}
+                            onChange={(e) => setSettingsPan(e.target.value)}
+                            placeholder="e.g. MAAYN1234F"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-marquee">Marquee Text</label>
+                        <div className="input-wrapper" style={{ alignItems: "flex-start", padding: "0.5rem" }}>
+                          <textarea
+                            id="settings-marquee"
+                            value={settingsMarquee}
+                            onChange={(e) => setSettingsMarquee(e.target.value)}
+                            placeholder="Marquee announcements text"
+                            rows={4}
+                            style={{ 
+                              width: "100%", 
+                              border: "none", 
+                              outline: "none", 
+                              background: "transparent",
+                              color: "var(--on-surface)",
+                              fontFamily: "inherit",
+                              resize: "vertical"
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Notification Emails list */}
+                      <div className="input-field-container">
+                        <label className="input-label">Notification Email Addresses</label>
+                        <span className="body-sm" style={{ color: "var(--on-surface-variant)", display: "block", fontSize: "0.8rem", marginBottom: "0.5rem" }}>
+                          These emails will receive details of each new booking.
+                        </span>
+                        
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {settingsEmails.map((email) => (
+                            <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.4rem 0.6rem", background: "var(--surface-container-low)", borderRadius: "var(--radius-sm)", border: "1px solid var(--outline-variant)" }}>
+                              <span style={{ fontSize: "0.85rem", color: "var(--on-surface)" }}>{email}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSettingsEmails(settingsEmails.filter(e => e !== email))}
+                                style={{ background: "none", border: "none", color: "var(--error)", cursor: "pointer", display: "flex", alignItems: "center" }}
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.75rem" }}>
+                          <div className="input-wrapper" style={{ flex: 1 }}>
+                            <Mail size={16} />
+                            <input
+                              type="email"
+                              value={newEmailInput}
+                              onChange={(e) => setNewEmailInput(e.target.value)}
+                              placeholder="Add new email address"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (newEmailInput && newEmailInput.trim()) {
+                                    if (!settingsEmails.includes(newEmailInput.trim())) {
+                                      setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
+                                    }
+                                    setNewEmailInput("");
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => {
+                              if (newEmailInput && newEmailInput.trim()) {
+                                if (!settingsEmails.includes(newEmailInput.trim())) {
+                                  setSettingsEmails([...settingsEmails, newEmailInput.trim()]);
+                                }
+                                setNewEmailInput("");
                               }
-                              setNewEmailInput("");
-                            }
-                          }}
-                          style={{ 
-                            padding: "0.6rem 1rem", 
-                            height: "42px", 
-                            whiteSpace: "nowrap",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.25rem",
-                            borderRadius: "var(--radius-sm)"
-                          }}
-                        >
-                          <Plus size={16} />
-                          <span>Add</span>
-                        </button>
+                            }}
+                            style={{ 
+                              padding: "0.6rem 1rem", 
+                              height: "42px", 
+                              whiteSpace: "nowrap",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                              borderRadius: "var(--radius-sm)"
+                            }}
+                          >
+                            <Plus size={16} />
+                            <span>Add</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column: Vehicle Rates */}
-                  <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                    <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
-                      Vehicle Fare Rates & Allowances
-                    </h3>
+                  {/* Right Column: Vehicle Rates & Allowances, and Trip Distance Settings */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                    {/* Vehicle Rates & Allowances */}
+                    <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                      <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
+                        Vehicle Fare Rates & Allowances
+                      </h3>
 
-                    {settingsLoading ? (
-                      <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}>
-                        <div className="spinner-small" style={{ width: "30px", height: "30px" }}></div>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                        {Object.keys(settingsVehicles).map((vehicleKey) => {
-                          const vehicleData = settingsVehicles[vehicleKey];
-                          return (
-                            <div key={vehicleKey} className="settings-vehicle-row">
-                              <span className="label-sm" style={{ fontWeight: "700", textTransform: "uppercase", display: "block", marginBottom: "0.5rem", color: "var(--on-surface)" }}>
-                                {vehicleKey.replace("_", " ")}
-                              </span>
-                              <div className="settings-vehicle-grid">
-                                <div className="input-field-container">
-                                  <label className="input-label" style={{ fontSize: "0.75rem" }}>Rate per KM (₹)</label>
-                                  <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
-                                    <IndianRupee size={14} />
-                                    <input
-                                      type="number"
-                                      step="0.1"
-                                      value={vehicleData.ratePerKm}
-                                      onChange={(e) => {
-                                        const val = parseFloat(e.target.value) || 0;
-                                        setSettingsVehicles(prev => ({
-                                          ...prev,
-                                          [vehicleKey]: { ...prev[vehicleKey], ratePerKm: val }
-                                        }));
-                                      }}
-                                      style={{ fontSize: "0.85rem" }}
-                                    />
-                                  </div>
-                                </div>
+                      {settingsLoading ? (
+                        <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}>
+                          <div className="spinner-small" style={{ width: "30px", height: "30px" }}></div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                          {/* Vehicle Type buttons */}
+                          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                            {Object.entries(VEHICLE_TYPES).map(([typeKey, typeInfo]) => {
+                              const isActive = selectedVehicleType === typeKey;
+                              return (
+                                <button
+                                  key={typeKey}
+                                  type="button"
+                                  onClick={() => setSelectedVehicleType(typeKey)}
+                                  className={isActive ? "btn-primary" : "btn-secondary"}
+                                  style={{
+                                    flex: "1 1 120px",
+                                    padding: "0.75rem 1.25rem",
+                                    fontWeight: "600",
+                                    fontSize: "0.9rem",
+                                    borderRadius: "var(--radius-sm)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "0.5rem",
+                                    border: isActive ? "1px solid var(--primary)" : "1px solid var(--outline-variant)",
+                                    backgroundColor: isActive ? "var(--primary)" : "transparent",
+                                    color: isActive ? "var(--on-primary)" : "var(--on-surface)",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: isActive ? "0 4px 12px rgba(217, 119, 6, 0.2)" : "none"
+                                  }}
+                                >
+                                  <Car size={16} />
+                                  <span>{typeInfo.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
 
-                                <div className="input-field-container">
-                                  <label className="input-label" style={{ fontSize: "0.75rem" }}>Driver Allowance (₹/Day)</label>
-                                  <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
-                                    <IndianRupee size={14} />
-                                    <input
-                                      type="number"
-                                      value={vehicleData.driverAllowancePerDay}
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        setSettingsVehicles(prev => ({
-                                          ...prev,
-                                          [vehicleKey]: { ...prev[vehicleKey], driverAllowancePerDay: val }
-                                        }));
-                                      }}
-                                      style={{ fontSize: "0.85rem" }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                          {/* Selected Vehicle Type configuration */}
+                          <AnimatePresence mode="wait">
+                            {selectedVehicleType ? (
+                              <motion.div
+                                key={selectedVehicleType}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.2 }}
+                                style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+                              >
+                                {VEHICLE_TYPES[selectedVehicleType].keys.map((vehicleKey) => {
+                                  const vehicleData = settingsVehicles[vehicleKey];
+                                  if (!vehicleData) return null;
+                                  return (
+                                    <div key={vehicleKey} className="settings-vehicle-row" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                                      <span className="label-sm" style={{ fontWeight: "700", textTransform: "uppercase", display: "block", color: "#d97706", fontSize: "0.85rem", letterSpacing: "0.05em" }}>
+                                        {vehicleKey.replace("_", " ")}
+                                      </span>
+                                      <div className="settings-vehicle-grid">
+                                        {/* Rate per KM */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Rate per KM (₹)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <IndianRupee size={14} />
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              value={vehicleData.ratePerKm}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], ratePerKm: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Driver Allowance */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Driver Allowance (₹/Day)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <IndianRupee size={14} />
+                                            <input
+                                              type="number"
+                                              value={vehicleData.driverAllowancePerDay}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], driverAllowancePerDay: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* One-Way Dist/Hr (KM) */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>One-Way Dist/Hr (KM)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <input
+                                              type="number"
+                                              value={vehicleData.oneWayMinKmPerHour !== undefined ? vehicleData.oneWayMinKmPerHour : 20}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], oneWayMinKmPerHour: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* One-Way Hourly Rate */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>One-Way Hourly Rate (₹)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <IndianRupee size={14} />
+                                            <input
+                                              type="number"
+                                              value={vehicleData.oneWayHourRate !== undefined ? vehicleData.oneWayHourRate : 170}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], oneWayHourRate: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Round-Trip Hourly Rate */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Round-Trip Hourly Rate (₹)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <IndianRupee size={14} />
+                                            <input
+                                              type="number"
+                                              value={vehicleData.roundTripHourRate !== undefined ? vehicleData.roundTripHourRate : 170}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], roundTripHourRate: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Outstation Hourly Rate */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Hourly Rate (₹)</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <IndianRupee size={14} />
+                                            <input
+                                              type="number"
+                                              value={vehicleData.outstationHourRate !== undefined ? vehicleData.outstationHourRate : 170}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], outstationHourRate: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Outstation Min KM/Day */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Min KM/Day</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <input
+                                              type="number"
+                                              value={vehicleData.outstationMinKmPerDay !== undefined ? vehicleData.outstationMinKmPerDay : 250}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], outstationMinKmPerDay: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Outstation Hours Per Day */}
+                                        <div className="input-field-container">
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Hours Per Day</label>
+                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
+                                            <input
+                                              type="number"
+                                              value={vehicleData.outstationHoursPerDay !== undefined ? vehicleData.outstationHoursPerDay : 16}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setSettingsVehicles(prev => ({
+                                                  ...prev,
+                                                  [vehicleKey]: { ...prev[vehicleKey], outstationHoursPerDay: val }
+                                                }));
+                                              }}
+                                              style={{ fontSize: "0.85rem" }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </motion.div>
+                            ) : (
+                              <motion.div
+                                key="placeholder"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "3rem 1.5rem",
+                                  border: "1px dashed var(--outline-variant)",
+                                  borderRadius: "var(--radius-sm)",
+                                  textAlign: "center",
+                                  color: "var(--on-surface-variant)",
+                                  gap: "0.75rem",
+                                  backgroundColor: "var(--surface-container-low)"
+                                }}
+                              >
+                                <Car size={36} style={{ color: "#d97706", opacity: 0.8 }} />
+                                <span className="title-sm" style={{ fontWeight: 600, color: "var(--on-surface)" }}>No Vehicle Type Selected</span>
+                                <span className="body-sm" style={{ fontSize: "0.8rem", maxWidth: "260px", lineHeight: "1.4" }}>
+                                  Select Hatchback, Sedan, or SUV above to configure rates, allowances, and trip settings.
+                                </span>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Trip Distance Settings (KM) */}
+                    <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                      <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
+                        Trip Distance Settings (KM)
+                      </h3>
+                      <span className="body-sm" style={{ color: "var(--on-surface-variant)", display: "block", fontSize: "0.8rem", marginTop: "-0.5rem" }}>
+                        Configure the minimum distance requirements (KM) for bookings.
+                      </span>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-min-km-oneway">One-Way Trip Minimum (KM)</label>
+                        <div className="input-wrapper">
+                          <input
+                            id="settings-min-km-oneway"
+                            type="number"
+                            value={settingsMinKmOneWay}
+                            onChange={(e) => setSettingsMinKmOneWay(Math.max(0, parseInt(e.target.value) || 0))}
+                            min="0"
+                          />
+                        </div>
                       </div>
-                    )}
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-min-km-roundtrip">Round Trip Minimum (KM)</label>
+                        <div className="input-wrapper">
+                          <input
+                            id="settings-min-km-roundtrip"
+                            type="number"
+                            value={settingsMinKmRoundTrip}
+                            onChange={(e) => setSettingsMinKmRoundTrip(Math.max(0, parseInt(e.target.value) || 0))}
+                            min="0"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-min-km-outstation">Outstation Trip Minimum (KM)</label>
+                        <div className="input-wrapper">
+                          <input
+                            id="settings-min-km-outstation"
+                            type="number"
+                            value={settingsMinKmOutstation}
+                            onChange={(e) => setSettingsMinKmOutstation(Math.max(0, parseInt(e.target.value) || 0))}
+                            min="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1445,7 +1992,7 @@ export default function AdminPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
                               <div>
                                 <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Customer Contact Details</h4>
-                                <p className="body-md"><strong>Email:</strong> <a href={`mailto:${booking.email_address}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.email_address}</a></p>
+                                <p className="body-md"><strong>Email:</strong> {booking.email_address ? <a href={`mailto:${booking.email_address}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.email_address}</a> : <span style={{ color: "var(--on-surface-variant)" }}>Not provided</span>}</p>
                                 <p className="body-md"><strong>Phone:</strong> <a href={`tel:${booking.phone_number}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.phone_number}</a></p>
                                 <p className="body-md"><strong>Passengers:</strong> {booking.passengers_count}</p>
                               </div>
@@ -1457,6 +2004,15 @@ export default function AdminPage() {
                                   <p className="body-md"><strong>Duration:</strong> {booking.number_of_days} {booking.number_of_days === 1 ? "Day" : "Days"}</p>
                                 )}
                                 <p className="body-md"><strong>Vehicle:</strong> {booking.car_type}</p>
+                                {booking.vehicle_no && (
+                                  <p className="body-md"><strong>Vehicle Number:</strong> {booking.vehicle_no}</p>
+                                )}
+                                {booking.driver_name && (
+                                  <p className="body-md"><strong>Driver Name:</strong> {booking.driver_name}</p>
+                                )}
+                                {booking.driver_phone && (
+                                  <p className="body-md"><strong>Driver Mobile:</strong> {booking.driver_phone}</p>
+                                )}
                                 <p className="body-md"><strong>Est. Distance:</strong> {Number(booking.distance_km).toFixed(2)} km</p>
                               </div>
 
@@ -1493,6 +2049,17 @@ export default function AdminPage() {
                                 >
                                   <FileText size={14} />
                                   <span>Manage Trip Sheet</span>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openNotifyModal(booking);
+                                  }}
+                                  className="btn-secondary"
+                                  style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
+                                >
+                                  <MessageSquare size={14} />
+                                  <span>Notify Customer</span>
                                 </button>
                               </div>
                             </div>
@@ -1687,7 +2254,10 @@ export default function AdminPage() {
                       Edit Details
                     </button>
                     <button
-                      onClick={() => setTripSheetView("preview")}
+                      onClick={async () => {
+                        await handleSaveTripSheet();
+                        setTripSheetView("preview");
+                      }}
                       className="tab-btn"
                       style={{
                         padding: "0.4rem 1rem",
@@ -1803,29 +2373,32 @@ export default function AdminPage() {
                           </div>
 
                           <div className="input-field-container">
-                            <label className="input-label">Reporting Time</label>
-                            <div className="input-wrapper">
-                              <Clock size={16} />
-                              <input
-                                type="text"
-                                placeholder="e.g. 07:00 AM"
-                                value={tripSheetData.reporting_time}
-                                onChange={(e) => setTripSheetData({ ...tripSheetData, reporting_time: e.target.value })}
-                              />
-                            </div>
+                            <TimePicker
+                              time={tripSheetData.reporting_time}
+                              setTime={(time) => {
+                                setTripSheetData(prev => prev ? ({
+                                  ...prev,
+                                  reporting_time: time,
+                                  vehicle_start_time: subtractMinutes(time, 30)
+                                }) : null);
+                              }}
+                              label="Reporting Time"
+                              placeholder="e.g. 07:00 AM"
+                            />
                           </div>
 
                           <div className="input-field-container">
-                            <label className="input-label">Vehicle Start Time</label>
-                            <div className="input-wrapper">
-                              <Clock size={16} />
-                              <input
-                                type="text"
-                                placeholder="e.g. 07:30 AM"
-                                value={tripSheetData.vehicle_start_time}
-                                onChange={(e) => setTripSheetData({ ...tripSheetData, vehicle_start_time: e.target.value })}
-                              />
-                            </div>
+                            <TimePicker
+                              time={tripSheetData.vehicle_start_time}
+                              setTime={(time) => {
+                                setTripSheetData(prev => prev ? ({
+                                  ...prev,
+                                  vehicle_start_time: time
+                                }) : null);
+                              }}
+                              label="Vehicle Start Time"
+                              placeholder="e.g. 07:30 AM"
+                            />
                           </div>
                         </div>
 
@@ -1913,8 +2486,22 @@ export default function AdminPage() {
                               <FileText size={16} />
                               <input
                                 type="text"
+                                placeholder="e.g. Local Run / Outstation Travel"
                                 value={tripSheetData.standing_instructions}
                                 onChange={(e) => setTripSheetData({ ...tripSheetData, standing_instructions: e.target.value })}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="input-field-container">
+                            <label className="input-label">Service City</label>
+                            <div className="input-wrapper">
+                              <MapPin size={16} />
+                              <input
+                                type="text"
+                                placeholder="e.g. Tamil Nadu"
+                                value={tripSheetData.service_city || ""}
+                                onChange={(e) => setTripSheetData({ ...tripSheetData, service_city: e.target.value })}
                               />
                             </div>
                           </div>
@@ -1932,6 +2519,8 @@ export default function AdminPage() {
                             pickupTime={tripSheetData.time_out}
                             setPickupDate={(date) => setTripSheetData({ ...tripSheetData, date_out: date })}
                             setPickupTime={(time) => setTripSheetData({ ...tripSheetData, time_out: time })}
+                            dateLabel="Out Date"
+                            timeLabel="Out Time"
                           />
                           <div className="input-field-container" style={{ marginTop: "1rem" }}>
                             <label className="input-label">Kilometers Out</label>
@@ -1946,58 +2535,9 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        {/* In Details */}
-                        <div className="card-lowest" style={{ padding: "1.25rem" }}>
-                          <span className="label-sm" style={{ display: "block", marginBottom: "1rem", color: "var(--primary)" }}>Returning / In Details</span>
-                          <DateTimePicker
-                            pickupDate={tripSheetData.date_in}
-                            pickupTime={tripSheetData.time_in || "12:00"}
-                            setPickupDate={(date) => setTripSheetData({ ...tripSheetData, date_in: date })}
-                            setPickupTime={(time) => setTripSheetData({ ...tripSheetData, time_in: time })}
-                          />
-                          <div className="input-field-container" style={{ marginTop: "1rem" }}>
-                            <label className="input-label">Kilometers In</label>
-                            <div className="input-wrapper">
-                              <input
-                                type="number"
-                                style={{ paddingLeft: "1.25rem" }}
-                                value={tripSheetData.kms_in || ""}
-                                onChange={(e) => setTripSheetData({ ...tripSheetData, kms_in: parseFloat(e.target.value) || 0 })}
-                              />
-                            </div>
-                          </div>
-                        </div>
                       </div>
 
-                      {/* Auto Calculated Summary Row */}
-                      <div className="card-lowest" style={{
-                        padding: "1rem 1.5rem",
-                        marginBottom: "1.5rem",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                        gap: "1.5rem",
-                        textAlign: "center",
-                        background: "var(--surface-container-low)"
-                      }}>
-                        <div>
-                          <span className="input-label">Total Days</span>
-                          <div style={{ fontSize: "1.25rem", fontWeight: "800", marginTop: "0.25rem" }}>
-                            {calculateTotalDays()} Day(s)
-                          </div>
-                        </div>
-                        <div>
-                          <span className="input-label">Total Kilometers</span>
-                          <div style={{ fontSize: "1.25rem", fontWeight: "800", marginTop: "0.25rem" }}>
-                            {calculateTotalKms()}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="input-label">Total Travel Time</span>
-                          <div style={{ fontSize: "1.25rem", fontWeight: "800", marginTop: "0.25rem" }}>
-                            {calculateTotalTime()}
-                          </div>
-                        </div>
-                      </div>
+
 
                       {/* Save Action */}
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem", borderTop: "1px solid var(--outline-variant)", paddingTop: "1rem" }}>
@@ -2077,8 +2617,8 @@ export default function AdminPage() {
                           {/* Header logo, details, and DS Serial */}
                           <div className="preview-header-container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", borderBottom: "2px solid #ffb300", paddingBottom: "15px" }}>
                             <div className="preview-logo-wrapper" style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-                              <div style={{ background: "#111111", color: "white", fontFamily: "var(--font-display)", fontWeight: "800", fontSize: "20px", padding: "10px 15px", letterSpacing: "2px", textTransform: "uppercase" }}>
-                                MAAYAN
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "45px", height: "45px" }}>
+                                <img src="/logo_original.png?v=3" alt="Maayan Trans Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                               </div>
                               <div>
                                 <div style={{ fontFamily: "var(--font-display)", fontWeight: "800", fontSize: "16px", color: "#111", letterSpacing: "0.5px", textTransform: "uppercase", lineHeight: 1.2 }}>MAAYAN TRANS & SERVICES</div>
@@ -2090,7 +2630,7 @@ export default function AdminPage() {
                             <div style={{ textAlign: "right" }}>
                               <div style={{ fontSize: "9px", color: "#888", fontWeight: "700", textTransform: "uppercase", letterSpacing: "1px" }}>TRIP SERIAL NUMBER</div>
                               <div style={{ fontFamily: "var(--font-display)", fontWeight: "800", fontSize: "20px", color: "#d97706", marginTop: "2px" }}>
-                                DS No: {tripSheetData.serial_no}
+                                {tripSheetData.serial_no}
                               </div>
                             </div>
                           </div>
@@ -2107,7 +2647,7 @@ export default function AdminPage() {
                             <tbody>
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>ORGANISATION</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: "bold", fontSize: "11px" }}>{tripSheetData.organisation || "---"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: "bold", fontSize: "11px", fontStyle: tripSheetData.organisation ? "normal" : "italic", color: tripSheetData.organisation ? "inherit" : "#888" }}>{tripSheetData.organisation || "To be filled"}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>BOOKING NO</td>
                                 <td className="booking-id-cell" style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: "bold" }}>{tripSheetData.booking_id}</td>
                               </tr>
@@ -2141,31 +2681,27 @@ export default function AdminPage() {
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>DATE</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.date_out}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.date_in || "---"}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontWeight: "bold" }}>{calculateTotalDays()} Day(s)</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>KILOMETERS</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.kms_out.toLocaleString("en-IN")} KM</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: tripSheetData.kms_in > 0 ? "normal" : "italic", color: tripSheetData.kms_in > 0 ? "inherit" : "#888" }}>
-                                  {tripSheetData.kms_in > 0 ? `${tripSheetData.kms_in.toLocaleString("en-IN")} KM` : "To be filled"}
-                                </td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontWeight: "bold" }}>{calculateTotalKms()}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>TIME</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.time_out}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: tripSheetData.time_in ? "normal" : "italic", color: tripSheetData.time_in ? "inherit" : "#888" }}>
-                                  {tripSheetData.time_in || "To be filled"}
-                                </td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontWeight: "bold" }}>{calculateTotalTime()}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{formatTimeTo12Hour(tripSheetData.time_out)}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>REPORTING TIME</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{tripSheetData.reporting_time}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{formatTimeTo12Hour(tripSheetData.reporting_time)}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>CHAUFFEUR</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>
                                   {tripSheetData.chauffeur_name ? `${tripSheetData.chauffeur_name} (${tripSheetData.chauffeur_phone})` : "To be filled"}
@@ -2174,9 +2710,9 @@ export default function AdminPage() {
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>VEHICLE START TIME</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{tripSheetData.vehicle_start_time}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{formatTimeTo12Hour(tripSheetData.vehicle_start_time)}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>VEHICLE NO.</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{tripSheetData.vehicle_no || "To be allotted"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", fontStyle: tripSheetData.vehicle_no ? "normal" : "italic", color: tripSheetData.vehicle_no ? "inherit" : "#888" }}>{tripSheetData.vehicle_no || "To be filled"}</td>
                               </tr>
 
                               <tr>
@@ -2199,34 +2735,39 @@ export default function AdminPage() {
                             <tbody>
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>PARKING & TOLL</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%" }}>{tripSheetData.parking_toll || "---"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.parking_toll ? "normal" : "italic", color: tripSheetData.parking_toll ? "inherit" : "#888" }}>{tripSheetData.parking_toll || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE CITY</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#888" }}>{tripSheetData.service_city || "To be filled"}</td>
+                              </tr>
+                              <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST.</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%" }}>{tripSheetData.standing_instructions || "---"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#888" }} colSpan={3}>{tripSheetData.standing_instructions || "To be filled"}</td>
                               </tr>
                             </tbody>
                           </table>
 
                           {/* Signature Block */}
-                          <div style={{
-                            marginTop: "50px",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center"
+                          <table style={{
+                            width: "100%",
+                            borderCollapse: "collapse",
+                            border: "1px solid #111",
+                            fontSize: "11px",
+                            marginTop: "30px"
                           }}>
-                            <div style={{
-                              border: "1px dashed #aaa",
-                              borderRadius: "var(--radius-sm)",
-                              padding: "25px",
-                              width: "80%",
-                              textAlign: "center",
-                              background: "#fafafa"
-                            }}>
-                              <div style={{ fontSize: "14px", color: "#ccc", marginBottom: "8px" }}>✏️</div>
-                              <span style={{ fontSize: "9px", fontWeight: "bold", color: "#666", letterSpacing: "1px", textTransform: "uppercase" }}>
-                                CUSTOMER / AUTH. SIGNATURE
-                              </span>
-                            </div>
-                          </div>
+                            <tbody>
+                              <tr>
+                                <td style={{ border: "1px solid #111", padding: "12px 14px", width: "55%", verticalAlign: "top", fontSize: "10px", lineHeight: "1.6", color: "#222" }}>
+                                  I confirm that I am responsible for full payment of this bill in the event that the bill is not paid by the organisation or person indicated.
+                                </td>
+                                <td style={{ border: "1px solid #111", padding: "12px 14px", width: "45%", verticalAlign: "bottom", textAlign: "center" }}>
+                                  <div style={{ height: "48px" }} />
+                                  <div style={{ borderTop: "1px solid #555", paddingTop: "6px", fontSize: "9px", fontWeight: "bold", color: "#555", letterSpacing: "1px", textTransform: "uppercase" }}>
+                                    ✏️ &nbsp; Signature
+                                  </div>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
 
                           {/* Custom Printed Footer */}
                           <div style={{
@@ -2250,6 +2791,203 @@ export default function AdminPage() {
 
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* ================= NOTIFY CUSTOMER DIALOG / MODAL ================= */}
+      <AnimatePresence>
+        {notifyBooking && (
+          <div className="print-modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: "1rem"
+          }}>
+            <motion.div
+              className="card-container"
+              style={{
+                maxWidth: "500px",
+                width: "100%",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                backgroundColor: "var(--surface)",
+                padding: "2rem",
+                position: "relative"
+              }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "1rem" }}>
+                <div>
+                  <h2 className="title-md" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <MessageSquare size={20} />
+                    <span>Notify Customer</span>
+                  </h2>
+                  <p className="body-md" style={{ fontSize: "0.8rem", color: "var(--on-surface-variant)", marginTop: "0.25rem" }}>
+                    Booking for: <strong>{notifyBooking.full_name}</strong> ({notifyBooking.phone_number})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNotifyBooking(null)}
+                  className="btn-icon"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--on-surface-variant)",
+                    cursor: "pointer",
+                    padding: "0.25rem",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {notifyLoading ? (
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
+                  <div className="spinner-small" style={{ width: "30px", height: "30px" }}></div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                  <div className="input-field-container">
+                    <label className="input-label">Vehicle Type</label>
+                    <div className="input-wrapper">
+                      <Car size={16} />
+                      <input
+                        type="text"
+                        placeholder="e.g. Hatchback, Sedan, SUV"
+                        value={notifyVehicleType}
+                        onChange={(e) => setNotifyVehicleType(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="input-field-container">
+                    <label className="input-label">Vehicle Number</label>
+                    <div className="input-wrapper">
+                      <FileText size={16} />
+                      <input
+                        type="text"
+                        placeholder="e.g. KA-01-MJ-1234"
+                        value={notifyVehicleNumber}
+                        onChange={(e) => setNotifyVehicleNumber(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="input-field-container">
+                    <label className="input-label">Driver Name</label>
+                    <div className="input-wrapper">
+                      <User size={16} />
+                      <input
+                        type="text"
+                        placeholder="e.g. Rajesh Kumar"
+                        value={notifyDriverName}
+                        onChange={(e) => setNotifyDriverName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="input-field-container">
+                    <label className="input-label">Driver Mobile Number</label>
+                    <div className="input-wrapper">
+                      <Phone size={16} />
+                      <input
+                        type="text"
+                        placeholder="e.g. 9876543210"
+                        value={notifyDriverPhone}
+                        onChange={(e) => setNotifyDriverPhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem", borderTop: "1px solid var(--outline-variant)", paddingTop: "1rem" }}>
+                    <button
+                      onClick={() => setNotifyBooking(null)}
+                      className="btn-secondary"
+                      style={{ padding: "0.5rem 1.5rem" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const success = await saveNotifyDetails(notifyBooking, false);
+                        if (success) {
+                          setNotifyBooking(null);
+                        }
+                      }}
+                      className="btn-primary"
+                      style={{
+                        padding: "0.5rem 1.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "100px"
+                      }}
+                      disabled={notifySaving}
+                    >
+                      {notifySaving ? <div className="spinner-small"></div> : "Save"}
+                    </button>
+                    <button
+                      onClick={handleSendWhatsApp}
+                      className="btn-primary"
+                      style={{
+                        padding: "0.5rem 1.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem"
+                      }}
+                    >
+                      <MessageSquare size={16} />
+                      <span>Send WhatsApp</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: 20 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: -20, x: 20 }}
+            style={{
+              position: "fixed",
+              top: "2rem",
+              right: "2rem",
+              zIndex: 9999,
+              backgroundColor: "var(--surface-container-lowest, #ffffff)",
+              color: "var(--on-surface, #1b1c1c)",
+              padding: "1rem 1.5rem",
+              borderRadius: "var(--radius-md, 0.75rem)",
+              boxShadow: "0 12px 40px rgba(79, 70, 50, 0.15)",
+              borderLeft: "4px solid #22c55e",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              fontFamily: "var(--font-display)"
+            }}
+          >
+            <CheckCircle2 size={20} style={{ color: "#22c55e" }} />
+            <span style={{ fontSize: "0.875rem", fontWeight: "600" }}>{toastMessage}</span>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

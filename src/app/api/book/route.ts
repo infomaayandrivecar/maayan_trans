@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 interface RawBookingData {
   fullName: string;
   phoneNumber: string;
-  emailAddress: string;
+  emailAddress?: string;
   passengersCount: number;
   tripInstructions: string;
   tripType: "One Way" | "Round Trip" | "Outstation Trip";
@@ -395,11 +395,47 @@ export async function POST(request: NextRequest) {
     };
 
     try {
-      const settingsPath = path.join(process.cwd(), "src", "data", "settings.json");
-      if (fs.existsSync(settingsPath)) {
-        const settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-        if (settingsData && settingsData.company) {
-          companySettings = settingsData.company;
+      // 1. Try fetching from Supabase settings table
+      const { data: dbSettings, error: dbError } = await supabase
+        .from("settings")
+        .select("company")
+        .eq("id", "current")
+        .single();
+
+      if (!dbError && dbSettings && dbSettings.company) {
+        const settingsPath = path.join(process.cwd(), "src", "data", "settings.json");
+        let localCompany = {
+          phone: "+91 98942 21664",
+          email: "maayantransporters@gmail.com",
+          address: "11-E, RKK Nagar, Singanallur, Coimbatore, Tamil Nadu, India",
+          notificationEmails: ["info.maayandrivecar@gmail.com"],
+          minKmOneWay: 5,
+          minKmRoundTrip: 5,
+          minKmOutstation: 100
+        };
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+            if (settingsData && settingsData.company) {
+              localCompany = { ...localCompany, ...settingsData.company };
+            }
+          } catch (_) {}
+        }
+        companySettings = {
+          ...localCompany,
+          ...(dbSettings.company as any)
+        };
+      } else {
+        if (dbError) {
+          console.warn("Supabase fetch error for settings, falling back to local file:", dbError.message || dbError);
+        }
+        // 2. Fallback to local settings.json file
+        const settingsPath = path.join(process.cwd(), "src", "data", "settings.json");
+        if (fs.existsSync(settingsPath)) {
+          const settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+          if (settingsData && settingsData.company) {
+            companySettings = settingsData.company;
+          }
         }
       }
     } catch (err) {
@@ -425,7 +461,6 @@ export async function POST(request: NextRequest) {
     const missingFields = [];
     if (!fullName) missingFields.push("Full Name");
     if (!phoneNumber) missingFields.push("Phone Number");
-    if (!emailAddress) missingFields.push("Email");
     if (!pickupLocation) missingFields.push("Pickup Location");
     if (!dropoffLocation) missingFields.push("Drop-off Location");
     if (!pickupDate) missingFields.push("Pickup Date");
@@ -436,6 +471,33 @@ export async function POST(request: NextRequest) {
     if (missingFields.length > 0) {
       return NextResponse.json(
         { error: `Missing required details: ${missingFields.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    const minKmOneWay = (companySettings as any).minKmOneWay !== undefined ? Number((companySettings as any).minKmOneWay) : 5;
+    const minKmRoundTrip = (companySettings as any).minKmRoundTrip !== undefined ? Number((companySettings as any).minKmRoundTrip) : 5;
+    const minKmOutstation = (companySettings as any).minKmOutstation !== undefined ? Number((companySettings as any).minKmOutstation) : 100;
+
+    const parsedDistance = parseFloat(distanceKm);
+
+    if (tripType === "One Way" && parsedDistance < minKmOneWay) {
+      return NextResponse.json(
+        { error: `One-Way bookings require a minimum trip distance of ${minKmOneWay} km.` },
+        { status: 400 }
+      );
+    }
+
+    if (tripType === "Round Trip" && parsedDistance < minKmRoundTrip) {
+      return NextResponse.json(
+        { error: `Round Trip bookings require a minimum trip distance of ${minKmRoundTrip} km.` },
+        { status: 400 }
+      );
+    }
+
+    if (tripType === "Outstation Trip" && parsedDistance < minKmOutstation) {
+      return NextResponse.json(
+        { error: `Outstation bookings require a minimum trip distance of ${minKmOutstation} km.` },
         { status: 400 }
       );
     }
@@ -756,7 +818,7 @@ export async function POST(request: NextRequest) {
                 ${(tripType === "Round Trip" || tripType === "Outstation Trip") ? `
                 <tr>
                   <td class="meta-cell meta-label">Duration</td>
-                  <td class="meta-cell meta-val">${numberOfDays} Days</td>
+                  <td class="meta-cell meta-val">${numberOfDays} ${numberOfDays === 1 ? 'Day' : 'Days'}</td>
                 </tr>
                 ` : ""}
                 <tr>
@@ -782,7 +844,9 @@ export async function POST(request: NextRequest) {
                 </div>
                 <div class="passenger-row">
                   <span class="passenger-label">Email:</span>
-                  <span class="passenger-value"><a href="mailto:${emailAddress}">${emailAddress}</a></span>
+                  <span class="passenger-value">
+                    ${emailAddress ? `<a href="mailto:${emailAddress}">${emailAddress}</a>` : `<span style="color: #8c8c8c;">Not provided</span>`}
+                  </span>
                 </div>
                 <div class="passenger-row">
                   <span class="passenger-label">Passengers:</span>
@@ -845,7 +909,7 @@ export async function POST(request: NextRequest) {
       await transporter.sendMail({
         from: `"${fullName} (via Maayan Trans)" <${smtpUser}>`,
         to: toEmailsString,
-        replyTo: emailAddress,
+        replyTo: emailAddress || undefined,
         subject: `[Booking Request] ${tripType} - From ${pickupLocation.split(",")[0]} to ${dropoffLocation.split(",")[0]} (${savedRecord.id})`,
         text: `New Booking received.\nID: ${savedRecord.id}\nPassenger: ${fullName}\nPhone: ${phoneNumber}\nFare: Rs ${Math.round(totalFare)}`,
         html: emailHtml,

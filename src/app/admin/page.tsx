@@ -68,7 +68,7 @@ const extractDistrictFromAddress = (address: string): string => {
   if (!address) return "";
   const parts = address.split(",").map(p => p.trim()).filter(Boolean);
   if (parts.length === 0) return "";
-  
+
   const lastPart = parts[parts.length - 1].toLowerCase();
   if (lastPart === "india") {
     if (parts.length >= 3) {
@@ -190,7 +190,7 @@ export default function AdminPage() {
   const [settingsPan, setSettingsPan] = useState("");
   const [settingsEmails, setSettingsEmails] = useState<string[]>(["info.maayandrivecar@gmail.com"]);
   const [newEmailInput, setNewEmailInput] = useState("");
-  const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number; oneWayMinKmPerHour?: number; oneWayHourRate?: number; roundTripHourRate?: number; outstationHourRate?: number; outstationMinKmPerDay?: number; outstationHoursPerDay?: number; }>>({}); 
+  const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number; oneWayMinKmPerHour?: number; oneWayHourRate?: number; roundTripHourRate?: number; outstationHourRate?: number; outstationMinKmPerDay?: number; outstationHoursPerDay?: number; }>>({});
   const [settingsMinKmOneWay, setSettingsMinKmOneWay] = useState<number>(5);
   const [settingsMinKmRoundTrip, setSettingsMinKmRoundTrip] = useState<number>(5);
   const [settingsMinKmOutstation, setSettingsMinKmOutstation] = useState<number>(100);
@@ -422,7 +422,7 @@ export default function AdminPage() {
 
   const handlePrintTripSheet = () => {
     if (!tripSheetData) return;
-    
+
     // Store original document title and url
     const originalTitle = document.title;
     const originalUrl = window.location.href;
@@ -614,12 +614,12 @@ export default function AdminPage() {
           prev.map((b) =>
             b.id === booking.id
               ? {
-                  ...b,
-                  car_type: notifyVehicleType,
-                  driver_name: notifyDriverName,
-                  driver_phone: notifyDriverPhone,
-                  vehicle_no: notifyVehicleNumber
-                }
+                ...b,
+                car_type: notifyVehicleType,
+                driver_name: notifyDriverName,
+                driver_phone: notifyDriverPhone,
+                vehicle_no: notifyVehicleNumber
+              }
               : b
           )
         );
@@ -642,7 +642,7 @@ export default function AdminPage() {
 
   const handleSendWhatsApp = async () => {
     if (!notifyBooking) return;
-    
+
     // Save notify details quietly before sending
     await saveNotifyDetails(notifyBooking, true);
 
@@ -657,10 +657,10 @@ export default function AdminPage() {
         const year = dateParts[0];
         const monthIndex = parseInt(dateParts[1], 10) - 1;
         const day = parseInt(dateParts[2], 10);
-        
+
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const monthStr = months[monthIndex] || dateParts[1];
-        
+
         let timeStr = notifyBooking.pickup_time;
         const timeParts = timeStr.split(":");
         if (timeParts.length >= 2) {
@@ -671,7 +671,7 @@ export default function AdminPage() {
           hours = hours ? hours : 12;
           timeStr = `${hours}:${minutes} ${ampm}`;
         }
-        
+
         formattedDateTime = `${day.toString().padStart(2, '0')} ${monthStr} ${year}, ${timeStr}`;
       }
     } catch (e) {
@@ -697,7 +697,7 @@ export default function AdminPage() {
       `• Date & Time: ${formattedDateTime}\n\n` +
       `Have a pleasant and safe journey. If you require any support, please contact us at ${companyPhone} or ${companyEmail}.\n\n` +
       `Thank you for choosing *Maayan Trans & Services*.`;
-    
+
     const url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -1266,14 +1266,14 @@ export default function AdminPage() {
 
                 </div>
 
-                    <div className="settings-grid">
+                <div className="settings-grid">
                   {/* Left Column: Company Info */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
                     <div className="feature-card card-lowest settings-card" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                       <h3 className="title-md" style={{ color: "#d97706", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", marginBottom: "0.5rem" }}>
                         Company Contact Settings
                       </h3>
-                      
+
                       <div className="input-field-container">
                         <label className="input-label" htmlFor="settings-phone">Phone Number</label>
                         <div className="input-wrapper">
@@ -1312,10 +1312,10 @@ export default function AdminPage() {
                             onChange={(e) => setSettingsAddress(e.target.value)}
                             placeholder="e.g. Company Address"
                             rows={3}
-                            style={{ 
-                              width: "100%", 
-                              border: "none", 
-                              outline: "none", 
+                            style={{
+                              width: "100%",
+                              border: "none",
+                              outline: "none",
                               background: "transparent",
                               color: "var(--on-surface)",
                               fontFamily: "inherit",
@@ -1360,10 +1360,10 @@ export default function AdminPage() {
                             onChange={(e) => setSettingsMarquee(e.target.value)}
                             placeholder="Marquee announcements text"
                             rows={4}
-                            style={{ 
-                              width: "100%", 
-                              border: "none", 
-                              outline: "none", 
+                            style={{
+                              width: "100%",
+                              border: "none",
+                              outline: "none",
                               background: "transparent",
                               color: "var(--on-surface)",
                               fontFamily: "inherit",
@@ -1379,7 +1379,7 @@ export default function AdminPage() {
                         <span className="body-sm" style={{ color: "var(--on-surface-variant)", display: "block", fontSize: "0.8rem", marginBottom: "0.5rem" }}>
                           These emails will receive details of each new booking.
                         </span>
-                        
+
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                           {settingsEmails.map((email) => (
                             <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.4rem 0.6rem", background: "var(--surface-container-low)", borderRadius: "var(--radius-sm)", border: "1px solid var(--outline-variant)" }}>
@@ -1395,7 +1395,7 @@ export default function AdminPage() {
                           ))}
                         </div>
 
-                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.75rem" }}>
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.75rem", flexWrap: "wrap" }}>
                           <div className="input-wrapper" style={{ flex: 1 }}>
                             <Mail size={16} />
                             <input
@@ -1427,9 +1427,9 @@ export default function AdminPage() {
                                 setNewEmailInput("");
                               }
                             }}
-                            style={{ 
-                              padding: "0.6rem 1rem", 
-                              height: "42px", 
+                            style={{
+                              padding: "0.6rem 1rem",
+                              height: "42px",
                               whiteSpace: "nowrap",
                               display: "flex",
                               alignItems: "center",
@@ -1785,394 +1785,392 @@ export default function AdminPage() {
               <>
                 {/* Quick Stats Grid */}
                 <div className="features-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "2rem", gap: "1.5rem" }}>
-              <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{
-                  width: "36px",
-                  height: "36px",
-                  marginBottom: "1rem",
-                  background: "rgba(217, 119, 6, 0.1)",
-                  border: "1px solid rgba(217, 119, 6, 0.2)",
-                  color: "#d97706"
-                }}><FileText size={18} /></div>
-                <span className="input-label" style={{ fontSize: "0.65rem" }}>Total Requests</span>
-                <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{bookings.length}</h3>
-              </div>
+                  <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
+                    <div className="feature-icon-wrap" style={{
+                      width: "36px",
+                      height: "36px",
+                      marginBottom: "1rem",
+                      background: "rgba(217, 119, 6, 0.1)",
+                      border: "1px solid rgba(217, 119, 6, 0.2)",
+                      color: "#d97706"
+                    }}><FileText size={18} /></div>
+                    <span className="input-label" style={{ fontSize: "0.65rem" }}>Total Requests</span>
+                    <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{bookings.length}</h3>
+                  </div>
 
-              <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{
-                  width: "36px",
-                  height: "36px",
-                  marginBottom: "1rem",
-                  background: "rgba(34, 197, 94, 0.1)",
-                  border: "1px solid rgba(34, 197, 94, 0.2)",
-                  color: "#22c55e"
-                }}><TrendingUp size={18} /></div>
-                <span className="input-label" style={{ fontSize: "0.65rem" }}>Est. Gross Revenue</span>
-                <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem", color: "var(--primary)" }}>
-                  ₹{Math.round(totalRevenue).toLocaleString("en-IN")}/-
-                </h3>
-              </div>
+                  <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
+                    <div className="feature-icon-wrap" style={{
+                      width: "36px",
+                      height: "36px",
+                      marginBottom: "1rem",
+                      background: "rgba(34, 197, 94, 0.1)",
+                      border: "1px solid rgba(34, 197, 94, 0.2)",
+                      color: "#22c55e"
+                    }}><TrendingUp size={18} /></div>
+                    <span className="input-label" style={{ fontSize: "0.65rem" }}>Est. Gross Revenue</span>
+                    <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem", color: "var(--primary)" }}>
+                      ₹{Math.round(totalRevenue).toLocaleString("en-IN")}/-
+                    </h3>
+                  </div>
 
-              <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{
-                  width: "36px",
-                  height: "36px",
-                  marginBottom: "1rem",
-                  background: "rgba(16, 185, 129, 0.1)",
-                  border: "1px solid rgba(16, 185, 129, 0.2)",
-                  color: "#10b981"
-                }}><CheckCircle2 size={18} /></div>
-                <span className="input-label" style={{ fontSize: "0.65rem" }}>Completed Trips</span>
-                <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{completedTripsCount}</h3>
-              </div>
+                  <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
+                    <div className="feature-icon-wrap" style={{
+                      width: "36px",
+                      height: "36px",
+                      marginBottom: "1rem",
+                      background: "rgba(16, 185, 129, 0.1)",
+                      border: "1px solid rgba(16, 185, 129, 0.2)",
+                      color: "#10b981"
+                    }}><CheckCircle2 size={18} /></div>
+                    <span className="input-label" style={{ fontSize: "0.65rem" }}>Completed Trips</span>
+                    <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{completedTripsCount}</h3>
+                  </div>
 
-              <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
-                <div className="feature-icon-wrap" style={{
-                  width: "36px",
-                  height: "36px",
-                  marginBottom: "1rem",
-                  background: "rgba(59, 130, 246, 0.1)",
-                  border: "1px solid rgba(59, 130, 246, 0.2)",
-                  color: "#3b82f6"
-                }}><Activity size={18} /></div>
-                <span className="input-label" style={{ fontSize: "0.65rem" }}>Active Trips</span>
-                <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{activeTripsCount}</h3>
-              </div>
-            </div>
-
-            {/* Filter and Search Bar */}
-            <div className="card-lowest search-filter-container" style={{ padding: "1rem 1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-              <div className="input-wrapper" style={{ flex: 1, minWidth: "260px", maxWidth: "450px" }}>
-                <Search size={18} />
-                <input
-                  type="text"
-                  placeholder="Search by ID, customer name, phone, or location..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <span className="input-label" style={{ margin: 0 }}>Trip Type:</span>
-                <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
-                  <select
-                    value={tripTypeFilter}
-                    onChange={(e: any) => setTripTypeFilter(e.target.value)}
-                    style={{ padding: "0.5rem 2rem 0.5rem 1rem", border: "none", background: "transparent", color: "var(--on-surface)", cursor: "pointer" }}
-                  >
-                    <option value="All">All Types</option>
-                    <option value="One Way">One Way</option>
-                    <option value="Round Trip">Round Trip</option>
-                    <option value="Outstation Trip">Outstation Trip</option>
-                  </select>
+                  <div className="feature-card card-lowest" style={{ padding: "1.5rem" }}>
+                    <div className="feature-icon-wrap" style={{
+                      width: "36px",
+                      height: "36px",
+                      marginBottom: "1rem",
+                      background: "rgba(59, 130, 246, 0.1)",
+                      border: "1px solid rgba(59, 130, 246, 0.2)",
+                      color: "#3b82f6"
+                    }}><Activity size={18} /></div>
+                    <span className="input-label" style={{ fontSize: "0.65rem" }}>Active Trips</span>
+                    <h3 className="display-lg" style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>{activeTripsCount}</h3>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Error Message */}
-            {fetchError && (
-              <div className="error-message-box" style={{ marginBottom: "1.5rem" }}>
-                <span className="error-text">Error loading bookings: {fetchError}</span>
-              </div>
-            )}
+                {/* Filter and Search Bar */}
+                <div className="card-lowest search-filter-container" style={{ padding: "1rem 1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                  <div className="input-wrapper" style={{ flex: 1, minWidth: "260px", maxWidth: "450px" }}>
+                    <Search size={18} />
+                    <input
+                      type="text"
+                      placeholder="Search by ID, customer name, phone, or location..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
 
-            {/* Bookings List */}
-            {fetchLoading && bookings.length === 0 ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "4rem" }}>
-                <div className="spinner-small" style={{ width: "30px", height: "30px", borderTopColor: "var(--primary)" }}></div>
-              </div>
-            ) : filteredBookings.length === 0 ? (
-              <div className="card-lowest" style={{ padding: "4rem 2rem", textAlign: "center" }}>
-                <AlertCircle size={40} style={{ color: "var(--on-surface-variant)", opacity: 0.5, marginBottom: "1rem" }} />
-                <h3 className="title-md">No bookings found</h3>
-                <p className="body-md">No records matched your search query or filter selection.</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {currentBookings.map((booking) => {
-                  const isExpanded = expandedBookingId === booking.id;
-                  const bookingDate = new Date(booking.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  });
-                  const bookingTime = new Date(booking.created_at).toLocaleTimeString("en-IN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+                  <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <span className="input-label" style={{ margin: 0 }}>Trip Type:</span>
+                    <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
+                      <select
+                        value={tripTypeFilter}
+                        onChange={(e: any) => setTripTypeFilter(e.target.value)}
+                        style={{ padding: "0.5rem 2rem 0.5rem 1rem", border: "none", background: "transparent", color: "var(--on-surface)", cursor: "pointer" }}
+                      >
+                        <option value="All">All Types</option>
+                        <option value="One Way">One Way</option>
+                        <option value="Round Trip">Round Trip</option>
+                        <option value="Outstation Trip">Outstation Trip</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
-                  return (
-                    <motion.div
-                      key={booking.id}
-                      className={`card-lowest ${
-                        booking.trip_type === "Round Trip"
-                          ? "round-trip-card"
-                          : booking.trip_type === "Outstation Trip"
-                          ? "outstation-trip-card"
-                          : "one-way-card"
-                      }`}
-                      style={{
-                        padding: "1.25rem 1.5rem",
-                        cursor: "pointer"
-                      }}
-                      onClick={() => toggleExpand(booking.id)}
-                      layout
-                    >
-                      <div className="booking-card-main" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
-                        <div className="booking-card-info" style={{ display: "flex", gap: "1rem", flex: 1, minWidth: "260px" }}>
-                          <div>
-                            <span className="hero-badge label-sm" style={{ padding: "0.25rem 0.6rem", fontSize: "0.6rem", textTransform: "none", marginBottom: 0, display: "inline-block" }}>
-                              {booking.id}
-                            </span>
-                            <h3 className="title-md" style={{ marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                              {booking.full_name}
-                            </h3>
-                            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.25rem", color: "var(--on-surface-variant)", fontSize: "0.8rem" }}>
-                              <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                                <Phone size={12} /> {booking.phone_number}
-                              </span>
-                              <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                                <Calendar size={12} /> {bookingDate} at {bookingTime}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                {/* Error Message */}
+                {fetchError && (
+                  <div className="error-message-box" style={{ marginBottom: "1.5rem" }}>
+                    <span className="error-text">Error loading bookings: {fetchError}</span>
+                  </div>
+                )}
 
-                        <div className="booking-card-meta" style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
-                          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-                            <span className={`status-badge ${(booking.status || "Pending").toLowerCase()}`}>
-                              {booking.status || "Pending"}
-                            </span>
-                            <span className={`trip-badge ${
-                              booking.trip_type === "Round Trip"
-                                ? "round-trip"
-                                : booking.trip_type === "Outstation Trip"
-                                ? "outstation"
-                                : "one-way"
-                            }`}>
-                              {booking.trip_type === "Outstation Trip" ? "Outstation" : booking.trip_type}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--primary)", marginTop: "0.2rem" }}>
-                            ₹{Math.round(booking.total_fare).toLocaleString("en-IN")}/-
-                          </div>
-                        </div>
-                      </div>
+                {/* Bookings List */}
+                {fetchLoading && bookings.length === 0 ? (
+                  <div style={{ display: "flex", justifyContent: "center", padding: "4rem" }}>
+                    <div className="spinner-small" style={{ width: "30px", height: "30px", borderTopColor: "var(--primary)" }}></div>
+                  </div>
+                ) : filteredBookings.length === 0 ? (
+                  <div className="card-lowest" style={{ padding: "4rem 2rem", textAlign: "center" }}>
+                    <AlertCircle size={40} style={{ color: "var(--on-surface-variant)", opacity: 0.5, marginBottom: "1rem" }} />
+                    <h3 className="title-md">No bookings found</h3>
+                    <p className="body-md">No records matched your search query or filter selection.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {currentBookings.map((booking) => {
+                      const isExpanded = expandedBookingId === booking.id;
+                      const bookingDate = new Date(booking.created_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      });
+                      const bookingTime = new Date(booking.created_at).toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
 
-                      {/* Route overview */}
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: "0.5rem 0.75rem",
-                        marginTop: "1rem",
-                        padding: "0.6rem 0.8rem",
-                        backgroundColor: "var(--surface-container-low)",
-                        borderRadius: "var(--radius-sm)",
-                        fontSize: "0.8rem"
-                      }}>
-                        <MapPin size={14} style={{ color: "#d97706" }} />
-                        <span style={{ fontWeight: "600" }}>{booking.pickup_location.split(",")[0]}</span>
-                        <span style={{ color: "var(--on-surface-variant)", opacity: 0.6 }}>➔</span>
-                        <MapPin size={14} style={{ color: "var(--on-surface)" }} />
-                        <span style={{ fontWeight: "600" }}>{booking.dropoff_location.split(",")[0]}</span>
-                      </div>
-
-                      {/* Expanded Section */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.25 }}
-                            style={{ overflow: "hidden", marginTop: "1rem", borderTop: "1px solid var(--outline-variant)", paddingTop: "1rem" }}
-                            onClick={(e) => e.stopPropagation()} // Prevent collapse when clicking details
-                          >
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
+                      return (
+                        <motion.div
+                          key={booking.id}
+                          className={`card-lowest ${booking.trip_type === "Round Trip"
+                            ? "round-trip-card"
+                            : booking.trip_type === "Outstation Trip"
+                              ? "outstation-trip-card"
+                              : "one-way-card"
+                            }`}
+                          style={{
+                            padding: "1.25rem 1.5rem",
+                            cursor: "pointer"
+                          }}
+                          onClick={() => toggleExpand(booking.id)}
+                          layout
+                        >
+                          <div className="booking-card-main" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                            <div className="booking-card-info" style={{ display: "flex", gap: "1rem", flex: 1, minWidth: "260px" }}>
                               <div>
-                                <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Customer Contact Details</h4>
-                                <p className="body-md"><strong>Email:</strong> {booking.email_address ? <a href={`mailto:${booking.email_address}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.email_address}</a> : <span style={{ color: "var(--on-surface-variant)" }}>Not provided</span>}</p>
-                                <p className="body-md"><strong>Phone:</strong> <a href={`tel:${booking.phone_number}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.phone_number}</a></p>
-                                <p className="body-md"><strong>Passengers:</strong> {booking.passengers_count}</p>
-                              </div>
-
-                              <div>
-                                <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Parameters</h4>
-                                <p className="body-md"><strong>Pickup Date:</strong> {booking.pickup_date} at {booking.pickup_time}</p>
-                                {(booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") && (
-                                  <p className="body-md"><strong>Duration:</strong> {booking.number_of_days} {booking.number_of_days === 1 ? "Day" : "Days"}</p>
-                                )}
-                                <p className="body-md"><strong>Vehicle:</strong> {booking.car_type}</p>
-                                {booking.vehicle_no && (
-                                  <p className="body-md"><strong>Vehicle Number:</strong> {booking.vehicle_no}</p>
-                                )}
-                                {booking.driver_name && (
-                                  <p className="body-md"><strong>Driver Name:</strong> {booking.driver_name}</p>
-                                )}
-                                {booking.driver_phone && (
-                                  <p className="body-md"><strong>Driver Mobile:</strong> {booking.driver_phone}</p>
-                                )}
-                                <p className="body-md"><strong>Est. Distance:</strong> {Number(booking.distance_km).toFixed(2)} km</p>
-                              </div>
-
-                              <div>
-                                <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Status</h4>
-                                <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
-                                  {(["Pending", "Active", "Completed"] as const).map((statusOption) => {
-                                    const isSelected = (booking.status || "Pending") === statusOption;
-                                    return (
-                                      <button
-                                        key={statusOption}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          updateStatus(booking.id, statusOption);
-                                        }}
-                                        className={`status-btn ${isSelected ? "selected" : ""}`}
-                                      >
-                                        {statusOption}
-                                      </button>
-                                    );
-                                  })}
+                                <span className="hero-badge label-sm" style={{ padding: "0.25rem 0.6rem", fontSize: "0.6rem", textTransform: "none", marginBottom: 0, display: "inline-block" }}>
+                                  {booking.id}
+                                </span>
+                                <h3 className="title-md" style={{ marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                  {booking.full_name}
+                                </h3>
+                                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.25rem", color: "var(--on-surface-variant)", fontSize: "0.8rem" }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                                    <Phone size={12} /> {booking.phone_number}
+                                  </span>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                                    <Calendar size={12} /> {bookingDate} at {bookingTime}
+                                  </span>
                                 </div>
                               </div>
-
-                              <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "flex-start", gap: "0.5rem" }}>
-                                <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Actions</h4>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    loadTripSheet(booking);
-                                  }}
-                                  className="btn-primary"
-                                  style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
-                                >
-                                  <FileText size={14} />
-                                  <span>Manage Trip Sheet</span>
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openNotifyModal(booking);
-                                  }}
-                                  className="btn-secondary"
-                                  style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
-                                >
-                                  <MessageSquare size={14} />
-                                  <span>Notify Customer</span>
-                                </button>
-                              </div>
                             </div>
 
-                            <div style={{ marginTop: "1rem" }}>
-                              <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Exact Route Details</h4>
-                              <p className="body-md"><strong>Pickup:</strong> {booking.pickup_location}</p>
-                              <p className="body-md"><strong>Destination:</strong> {booking.dropoff_location}</p>
-                            </div>
-
-                            {booking.trip_instructions && (
-                              <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", backgroundColor: "var(--surface-container)", borderRadius: "var(--radius-sm)", borderLeft: "3px solid var(--primary-container)" }}>
-                                <h4 className="label-sm" style={{ marginBottom: "0.25rem" }}>Special Instructions</h4>
-                                <p className="body-md" style={{ fontStyle: "italic" }}>"{booking.trip_instructions}"</p>
+                            <div className="booking-card-meta" style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
+                              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                                <span className={`status-badge ${(booking.status || "Pending").toLowerCase()}`}>
+                                  {booking.status || "Pending"}
+                                </span>
+                                <span className={`trip-badge ${booking.trip_type === "Round Trip"
+                                  ? "round-trip"
+                                  : booking.trip_type === "Outstation Trip"
+                                    ? "outstation"
+                                    : "one-way"
+                                  }`}>
+                                  {booking.trip_type === "Outstation Trip" ? "Outstation" : booking.trip_type}
+                                </span>
                               </div>
-                            )}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                              <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--primary)", marginTop: "0.2rem" }}>
+                                ₹{Math.round(booking.total_fare).toLocaleString("en-IN")}/-
+                              </div>
+                            </div>
+                          </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="no-print" style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "1rem",
-                marginTop: "2rem",
-                padding: "1rem 1.5rem",
-                borderTop: "1px solid var(--outline-variant)"
-              }}>
-                <div className="body-md" style={{ color: "var(--on-surface-variant)", fontSize: "0.85rem" }}>
-                  Showing <strong style={{ color: "var(--on-surface)" }}>{indexOfFirstItem + 1}</strong> to <strong style={{ color: "var(--on-surface)" }}>{Math.min(indexOfLastItem, filteredBookings.length)}</strong> of <strong style={{ color: "var(--on-surface)" }}>{filteredBookings.length}</strong> bookings
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  {/* Previous Button */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="btn-secondary"
-                    style={{
-                      padding: "0.5rem 1rem",
-                      fontSize: "0.8rem",
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      borderRadius: "var(--radius-sm)"
-                    }}
-                  >
-                    &larr; Prev
-                  </button>
-
-                  {/* Page Numbers */}
-                  <div style={{ display: "flex", gap: "0.25rem" }}>
-                    {Array.from({ length: totalPages }, (_, i) => {
-                      const pageNum = i + 1;
-                      const isCurrent = currentPage === pageNum;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className="btn-secondary"
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            padding: 0,
+                          {/* Route overview */}
+                          <div style={{
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "0.85rem",
-                            fontWeight: "600",
+                            flexWrap: "wrap",
+                            gap: "0.5rem 0.75rem",
+                            marginTop: "1rem",
+                            padding: "0.6rem 0.8rem",
+                            backgroundColor: "var(--surface-container-low)",
                             borderRadius: "var(--radius-sm)",
-                            border: isCurrent ? "1px solid var(--primary)" : "none",
-                            background: isCurrent ? "var(--primary)" : "var(--surface-container-low)",
-                            color: isCurrent ? "var(--on-primary)" : "var(--on-surface)"
-                          }}
-                        >
-                          {pageNum}
-                        </button>
+                            fontSize: "0.8rem"
+                          }}>
+                            <MapPin size={14} style={{ color: "#d97706" }} />
+                            <span style={{ fontWeight: "600" }}>{booking.pickup_location.split(",")[0]}</span>
+                            <span style={{ color: "var(--on-surface-variant)", opacity: 0.6 }}>➔</span>
+                            <MapPin size={14} style={{ color: "var(--on-surface)" }} />
+                            <span style={{ fontWeight: "600" }}>{booking.dropoff_location.split(",")[0]}</span>
+                          </div>
+
+                          {/* Expanded Section */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.25 }}
+                                style={{ overflow: "hidden", marginTop: "1rem", borderTop: "1px solid var(--outline-variant)", paddingTop: "1rem" }}
+                                onClick={(e) => e.stopPropagation()} // Prevent collapse when clicking details
+                              >
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
+                                  <div>
+                                    <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Customer Contact Details</h4>
+                                    <p className="body-md"><strong>Email:</strong> {booking.email_address ? <a href={`mailto:${booking.email_address}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.email_address}</a> : <span style={{ color: "var(--on-surface-variant)" }}>Not provided</span>}</p>
+                                    <p className="body-md"><strong>Phone:</strong> <a href={`tel:${booking.phone_number}`} style={{ color: "inherit", textDecoration: "underline" }}>{booking.phone_number}</a></p>
+                                    <p className="body-md"><strong>Passengers:</strong> {booking.passengers_count}</p>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Parameters</h4>
+                                    <p className="body-md"><strong>Pickup Date:</strong> {booking.pickup_date} at {booking.pickup_time}</p>
+                                    {(booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") && (
+                                      <p className="body-md"><strong>Duration:</strong> {booking.number_of_days} {booking.number_of_days === 1 ? "Day" : "Days"}</p>
+                                    )}
+                                    <p className="body-md"><strong>Vehicle:</strong> {booking.car_type}</p>
+                                    {booking.vehicle_no && (
+                                      <p className="body-md"><strong>Vehicle Number:</strong> {booking.vehicle_no}</p>
+                                    )}
+                                    {booking.driver_name && (
+                                      <p className="body-md"><strong>Driver Name:</strong> {booking.driver_name}</p>
+                                    )}
+                                    {booking.driver_phone && (
+                                      <p className="body-md"><strong>Driver Mobile:</strong> {booking.driver_phone}</p>
+                                    )}
+                                    <p className="body-md"><strong>Est. Distance:</strong> {Number(booking.distance_km).toFixed(2)} km</p>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Status</h4>
+                                    <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
+                                      {(["Pending", "Active", "Completed"] as const).map((statusOption) => {
+                                        const isSelected = (booking.status || "Pending") === statusOption;
+                                        return (
+                                          <button
+                                            key={statusOption}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              updateStatus(booking.id, statusOption);
+                                            }}
+                                            className={`status-btn ${isSelected ? "selected" : ""}`}
+                                          >
+                                            {statusOption}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "flex-start", gap: "0.5rem" }}>
+                                    <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Actions</h4>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        loadTripSheet(booking);
+                                      }}
+                                      className="btn-primary"
+                                      style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
+                                    >
+                                      <FileText size={14} />
+                                      <span>Manage Trip Sheet</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openNotifyModal(booking);
+                                      }}
+                                      className="btn-secondary"
+                                      style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
+                                    >
+                                      <MessageSquare size={14} />
+                                      <span>Notify Customer</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div style={{ marginTop: "1rem" }}>
+                                  <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Exact Route Details</h4>
+                                  <p className="body-md"><strong>Pickup:</strong> {booking.pickup_location}</p>
+                                  <p className="body-md"><strong>Destination:</strong> {booking.dropoff_location}</p>
+                                </div>
+
+                                {booking.trip_instructions && (
+                                  <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", backgroundColor: "var(--surface-container)", borderRadius: "var(--radius-sm)", borderLeft: "3px solid var(--primary-container)" }}>
+                                    <h4 className="label-sm" style={{ marginBottom: "0.25rem" }}>Special Instructions</h4>
+                                    <p className="body-md" style={{ fontStyle: "italic" }}>"{booking.trip_instructions}"</p>
+                                  </div>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
                       );
                     })}
                   </div>
+                )}
 
-                  {/* Next Button */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="btn-secondary"
-                    style={{
-                      padding: "0.5rem 1rem",
-                      fontSize: "0.8rem",
-                      cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      borderRadius: "var(--radius-sm)"
-                    }}
-                  >
-                    Next &rarr;
-                  </button>
-                </div>
-              </div>
-            )}
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="no-print" style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "1rem",
+                    marginTop: "2rem",
+                    padding: "1rem 1.5rem",
+                    borderTop: "1px solid var(--outline-variant)"
+                  }}>
+                    <div className="body-md" style={{ color: "var(--on-surface-variant)", fontSize: "0.85rem" }}>
+                      Showing <strong style={{ color: "var(--on-surface)" }}>{indexOfFirstItem + 1}</strong> to <strong style={{ color: "var(--on-surface)" }}>{Math.min(indexOfLastItem, filteredBookings.length)}</strong> of <strong style={{ color: "var(--on-surface)" }}>{filteredBookings.length}</strong> bookings
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      {/* Previous Button */}
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="btn-secondary"
+                        style={{
+                          padding: "0.5rem 1rem",
+                          fontSize: "0.8rem",
+                          cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                          opacity: currentPage === 1 ? 0.5 : 1,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          borderRadius: "var(--radius-sm)"
+                        }}
+                      >
+                        &larr; Prev
+                      </button>
+
+                      {/* Page Numbers */}
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        {Array.from({ length: totalPages }, (_, i) => {
+                          const pageNum = i + 1;
+                          const isCurrent = currentPage === pageNum;
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="btn-secondary"
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                padding: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "0.85rem",
+                                fontWeight: "600",
+                                borderRadius: "var(--radius-sm)",
+                                border: isCurrent ? "1px solid var(--primary)" : "none",
+                                background: isCurrent ? "var(--primary)" : "var(--surface-container-low)",
+                                color: isCurrent ? "var(--on-primary)" : "var(--on-surface)"
+                              }}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Next Button */}
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="btn-secondary"
+                        style={{
+                          padding: "0.5rem 1rem",
+                          fontSize: "0.8rem",
+                          cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                          opacity: currentPage === totalPages ? 0.5 : 1,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          borderRadius: "var(--radius-sm)"
+                        }}
+                      >
+                        Next &rarr;
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

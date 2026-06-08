@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Navigation, Calendar, Clock, Phone, Award, Compass, Heart, ShieldCheck, Briefcase, Plane, Map, ChevronDown } from "lucide-react";
+import { MapPin, Navigation, Calendar, Clock, Phone, Award, Compass, Heart, ShieldCheck, Briefcase, Plane, Map, ChevronDown, Users, Luggage } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CountUp from "react-countup";
 import { useFormik } from "formik";
@@ -28,6 +28,18 @@ const staggerContainer = {
   }
 };
 
+const highlightCities = [
+  { name: "New Delhi", x: 34.0, y: 29.5 },
+  { name: "Mumbai", x: 23.5, y: 60.5 },
+  { name: "Bengaluru", x: 36.0, y: 78.0 },
+  { name: "Chennai", x: 42.5, y: 78.5 },
+  { name: "Kochi", x: 35.0, y: 84.5 },
+  { name: "Coimbatore", x: 37.0, y: 81.0 },
+  { name: "Madurai", x: 39.5, y: 83.5 },
+  { name: "Hyderabad", x: 39.5, y: 67.0 },
+  { name: "Kolkata", x: 70.0, y: 50.0 }
+];
+
 export default function Home() {
   const router = useRouter();
   const {
@@ -44,6 +56,7 @@ export default function Home() {
     calculateDistance,
     isLoading: isBookingLoading,
     error: bookingError,
+    vehicles,
   } = useBooking();
 
   const [showDaysDropdown, setShowDaysDropdown] = useState(false);
@@ -140,7 +153,7 @@ export default function Home() {
 
       <main className="main-content">
         {/* HERO SECTION */}
-        <section className="hero-section" style={{ position: 'relative' }}>
+        <section className="hero-section" style={{ position: 'relative', overflow: 'hidden' }}>
           {/* Subtle animated background gradient */}
           <motion.div
             className="hero-bg-gradient"
@@ -153,6 +166,37 @@ export default function Home() {
               zIndex: -1
             }}
           />
+
+          {/* India Map Background */}
+          <motion.div
+            animate={{
+              x: [0, 15, -15, 0],
+              y: [0, 10, -10, 0],
+              scale: [1, 1.01, 0.99, 1],
+            }}
+            transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
+            className="hero-map-container"
+          >
+            {/* Map Image Layer */}
+            <div className="bg-map-element-layer" />
+
+            {/* Interactive pulsing markers */}
+            {highlightCities.map((city) => (
+              <div
+                key={city.name}
+                className="map-marker-container"
+                style={{
+                  position: 'absolute',
+                  left: `${city.x}%`,
+                  top: `${city.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div className="map-marker-pulse" />
+                <div className="map-marker-dot" />
+              </div>
+            ))}
+          </motion.div>
 
           <div className="hero-container">
             {/* Left Content (Animated) */}
@@ -321,7 +365,7 @@ export default function Home() {
                         <DateTimePicker
                           pickupDate={formik.values.pickupDate}
                           pickupTime={formik.values.dropTime}
-                          setPickupDate={() => {}}
+                          setPickupDate={() => { }}
                           setPickupTime={(time) => {
                             setDropTime(time);
                             formik.setFieldValue("dropTime", time);
@@ -484,6 +528,367 @@ export default function Home() {
                 </motion.div>
               ))}
             </motion.div>
+          </div>
+        </section>
+
+        {/* CAR RENTAL / FLEET SECTION */}
+        <section id="fleet" className="features-section" style={{ backgroundColor: 'var(--surface-container-lowest)', borderTop: '1px solid var(--outline-variant)' }}>
+          <div className="section-container">
+            <motion.div
+              className="section-header"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-100px" }}
+              variants={fadeIn}
+            >
+              <span className="hero-badge label-sm" style={{ display: 'inline-block', marginBottom: '1.25rem', padding: '0.4rem 1.1rem' }}>Our Fleet</span>
+              <h2 className="headline-md section-title" style={{ fontWeight: 800 }}>Explore Our Car Options</h2>
+              <p className="section-subtitle body-md" style={{ maxWidth: '600px', margin: '0.5rem auto 0 auto' }}>
+                Select from our premium range of well-maintained vehicles. Ideal for outstation travel, airport transfers, and local daily use.
+              </p>
+            </motion.div>
+
+            <motion.div
+              className="fleet-grid"
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-50px" }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '2rem',
+                marginTop: '3rem'
+              }}
+            >
+              {[
+                {
+                  id: "hatchback",
+                  name: "Hatchback",
+                  defaultImage: "/images/hatchback.png",
+                  passengers: "4 Passengers",
+                  luggage: "2 Bags",
+                  defaultRate: 13,
+                  type: "Suzuki WagonR / Swift or equivalent",
+                  features: ["Air Conditioned", "Economical City Ride", "Well-Maintained & Clean"]
+                },
+                {
+                  id: "sedan",
+                  name: "Sedan",
+                  defaultImage: "/images/sedan.png",
+                  passengers: "4 Passengers",
+                  luggage: "3 Bags",
+                  defaultRate: 14,
+                  type: "Suzuki Dzire / Toyota Etios or equivalent",
+                  features: ["Extra Boot Space", "Comfortable Legroom", "Perfect for Intercity"]
+                },
+                {
+                  id: "premium_sedan",
+                  name: "Premium Sedan",
+                  defaultImage: "/images/premium_sedan.png",
+                  passengers: "4 Passengers",
+                  luggage: "3 Bags",
+                  defaultRate: 16,
+                  type: "Honda City / Hyundai Verna or equivalent",
+                  features: ["Premium Interior", "Superior Comfort", "Business & Family Travel"]
+                },
+                {
+                  id: "suv",
+                  name: "SUV",
+                  defaultImage: "/images/suv.png",
+                  passengers: "6-7 Passengers",
+                  luggage: "4 Bags",
+                  defaultRate: 17.5,
+                  type: "Suzuki Ertiga / Mahindra Marazzo or equivalent",
+                  features: ["Spacious Seating", "Great for Families", "High Ground Clearance"]
+                },
+                {
+                  id: "premium_suv",
+                  name: "Premium SUV",
+                  defaultImage: "/images/premium_suv.png",
+                  passengers: "7 Passengers",
+                  luggage: "5 Bags",
+                  defaultRate: 20,
+                  type: "Toyota Innova Crysta or equivalent",
+                  features: ["Ultra-Premium Comfort", "Captain Seats", "Top Choice for Long Distance"]
+                }
+              ].map((car, idx) => {
+                const matchedVehicle = vehicles?.find(v => v.id === car.id);
+                const rate = matchedVehicle ? matchedVehicle.ratePerKm : car.defaultRate;
+                const image = matchedVehicle ? matchedVehicle.image : car.defaultImage;
+
+                return (
+                  <motion.div
+                    key={idx}
+                    className="feature-card card-lowest fleet-card"
+                    variants={fadeIn}
+                    whileHover={{ y: -8 }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      padding: '1.5rem',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--outline-variant)',
+                      backgroundColor: 'var(--surface)',
+                      transition: 'all 0.3s ease',
+                      boxShadow: 'var(--shadow-flat)',
+                      position: 'relative'
+                    }}
+                  >
+                    <div>
+                      {/* Car Image container */}
+                      <div style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '180px',
+                        marginBottom: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'radial-gradient(circle, var(--surface-tint-5) 0%, transparent 70%)'
+                      }}>
+                        <Image
+                          src={image}
+                          alt={car.name}
+                          width={280}
+                          height={160}
+                          style={{
+                            objectFit: 'contain',
+                            filter: 'drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.08))'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem' }}>
+                        <h3 className="title-md" style={{ fontWeight: 700, margin: 0 }}>{car.name}</h3>
+                        <span className="label-sm" style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '1.1rem' }}>
+                          ₹{rate}<span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--on-surface-variant)' }}>/km</span>
+                        </span>
+                      </div>
+
+                      <p className="body-sm" style={{ color: 'var(--on-surface-variant)', fontSize: '0.8rem', marginBottom: '1rem', fontStyle: 'italic' }}>
+                        {car.type}
+                      </p>
+
+                      {/* Passenger / Luggage Capacities */}
+                      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', borderTop: '1px solid var(--outline-variant)', borderBottom: '1px solid var(--outline-variant)', padding: '0.5rem 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--on-surface)' }}>
+                          <Users size={14} style={{ color: 'var(--primary)' }} />
+                          <span>{car.passengers}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--on-surface)' }}>
+                          <Luggage size={14} style={{ color: 'var(--primary)' }} />
+                          <span>{car.luggage}</span>
+                        </div>
+                      </div>
+
+                      {/* Features List */}
+                      <ul style={{ paddingLeft: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {car.features.map((feat, fIdx) => (
+                          <li key={fIdx} className="body-sm" style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>
+                            {feat}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="btn-primary"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        boxShadow: 'none'
+                      }}
+                    >
+                      <span>Book {car.name} Now</span>
+                      <Navigation size={14} />
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* SELF-DRIVE CAR RENTAL SECTION */}
+        <section id="self-drive" className="features-section" style={{ borderTop: '1px solid var(--outline-variant)', backgroundColor: 'transparent' }}>
+          <div className="section-container">
+            <motion.div
+              className="section-header"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-100px" }}
+              variants={fadeIn}
+            >
+              <span className="hero-badge label-sm" style={{ display: 'inline-block', marginBottom: '1.25rem', padding: '0.4rem 1.1rem' }}>Drive Yourself</span>
+              <h2 className="headline-md section-title" style={{ fontWeight: 800 }}>Self-Drive Car Rentals</h2>
+              <p className="section-subtitle body-md" style={{ maxWidth: '600px', margin: '0.5rem auto 0 auto' }}>
+                Rent a car and take the wheel. Enjoy complete freedom, privacy, and zero driver allowance costs. Perfect for weekend getaways, family outings, and long road trips.
+              </p>
+            </motion.div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "2rem", marginTop: "3rem" }}>
+              {/* Left Column: Benefits & How It Works */}
+              <motion.div
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                variants={staggerContainer}
+                style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+              >
+                <h3 className="title-md" style={{ fontWeight: 700, borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", color: "var(--primary)" }}>
+                  Why Choose Self-Drive?
+                </h3>
+
+                {[
+                  { title: "Complete Privacy & Freedom", desc: "No driver, no schedules. Go where you want, when you want, and enjoy the journey with your loved ones." },
+                  { title: "Zero Driver Allowance Costs", desc: "Save on driver fees and allowances. You only pay for the car rental and fuel." },
+                  { title: "Doorstep Delivery & Collection", desc: "Have the car delivered to your home, office, or airport and collected when you return." },
+                  { title: "24/7 Roadside Assistance", desc: "Drive with peace of mind. We provide round-the-clock emergency support for breakdowns or issues." }
+                ].map((item, idx) => (
+                  <motion.div
+                    key={idx}
+                    variants={fadeIn}
+                    className="feature-card card-lowest"
+                    whileHover={{ y: -4 }}
+                    style={{
+                      display: "flex",
+                      gap: "1.25rem",
+                      padding: "1.25rem",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--outline-variant)",
+                      backgroundColor: "var(--surface)",
+                      boxShadow: "var(--shadow-flat)",
+                      alignItems: "flex-start"
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "50%",
+                      backgroundColor: "rgba(255, 179, 0, 0.1)",
+                      border: "1px solid rgba(255, 179, 0, 0.25)",
+                      color: "var(--primary)",
+                      flexShrink: 0
+                    }}>
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h4 className="title-sm" style={{ fontWeight: 700, margin: "0 0 0.35rem 0", fontSize: "0.95rem" }}>{item.title}</h4>
+                      <p className="body-md" style={{ fontSize: "0.85rem", color: "var(--on-surface-variant)", margin: 0, lineHeight: 1.45 }}>{item.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {/* Right Column: Fleet Options & Pricing */}
+              <motion.div
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                variants={staggerContainer}
+                style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+              >
+                <h3 className="title-md" style={{ fontWeight: 700, borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.75rem", color: "var(--primary)" }}>
+                  Available Categories & Pricing
+                </h3>
+
+                {[
+                  {
+                    name: "Self-Drive Hatchbacks",
+                    models: "Maruti Swift, Hyundai i20, or equivalent",
+                    price: "₹1,200",
+                    image: "/images/hatchback.png"
+                  },
+                  {
+                    name: "Self-Drive Sedans",
+                    models: "Maruti Dzire, Honda Amaze, or equivalent",
+                    price: "₹1,500",
+                    image: "/images/sedan.png"
+                  },
+                  {
+                    name: "Self-Drive SUVs",
+                    models: "Mahindra Thar, Maruti Ertiga, Hyundai Creta",
+                    price: "₹2,000",
+                    image: "/images/suv.png"
+                  }
+                ].map((cat, idx) => (
+                  <motion.div
+                    key={idx}
+                    variants={fadeIn}
+                    className="feature-card card-lowest"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1.25rem",
+                      padding: "1rem",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--outline-variant)",
+                      backgroundColor: "var(--surface)",
+                      boxShadow: "var(--shadow-flat)"
+                    }}
+                  >
+                    <div style={{
+                      position: "relative",
+                      width: "90px",
+                      height: "60px",
+                      flexShrink: 0,
+                      background: "radial-gradient(circle, var(--surface-tint-5) 0%, transparent 70%)"
+                    }}>
+                      <Image
+                        src={cat.image}
+                        alt={cat.name}
+                        fill
+                        style={{ objectFit: "contain" }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h4 className="title-sm" style={{ fontWeight: 700, margin: "0 0 0.15rem 0" }}>{cat.name}</h4>
+                      <p className="body-sm" style={{ color: "var(--on-surface-variant)", fontSize: "0.75rem", margin: "0 0 0.4rem 0" }}>{cat.models}</p>
+                      <span className="label-sm" style={{ color: "var(--primary)", fontWeight: 700, fontSize: "0.95rem" }}>
+                        Starting from {cat.price}<span style={{ fontSize: "0.7rem", fontWeight: 500, color: "var(--on-surface-variant)" }}>/day</span>
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* CTA Button */}
+                <motion.div variants={fadeIn} style={{ marginTop: "1rem" }}>
+                  <a
+                    href="https://wa.me/+919894221664?text=Hi%20Maayan%20Trans,%20I%20am%20interested%20in%20booking%20a%20Self-Drive%20Car%20Rental."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.5rem",
+                      padding: "0.75rem",
+                      textDecoration: "none",
+                      boxShadow: "none"
+                    }}
+                  >
+                    <span>Enquire on WhatsApp</span>
+                    <Phone size={14} />
+                  </a>
+                </motion.div>
+              </motion.div>
+            </div>
           </div>
         </section>
 

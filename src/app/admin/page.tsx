@@ -132,6 +132,38 @@ const VEHICLE_TYPES: Record<string, { label: string; keys: string[] }> = {
   }
 };
 
+const generateUniqueSerialAndDS = async (bookingId: string): Promise<{ serial_no: string; ds_no: string }> => {
+  const idParts = bookingId ? bookingId.split("-") : [];
+  let dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
+  let generatedDS = `DS-${dsSuffix}`;
+  let generatedSerial = `TS-${dsSuffix}`;
+
+  try {
+    const { data: existingSerials } = await supabase
+      .from("trip_sheets")
+      .select("serial_no")
+      .eq("serial_no", generatedSerial)
+      .limit(1);
+
+    if (existingSerials && existingSerials.length > 0) {
+      if (idParts.length >= 3) {
+        // e.g. MYN-CBE-240626-1827-0011 -> 240626-0011
+        const datePart = idParts[idParts.length - 3];
+        dsSuffix = `${datePart}-${dsSuffix}`;
+      } else {
+        dsSuffix = `${dsSuffix}-${Math.floor(100 + Math.random() * 900)}`;
+      }
+      generatedDS = `DS-${dsSuffix}`;
+      generatedSerial = `TS-${dsSuffix}`;
+    }
+  } catch (e) {
+    console.error("Error generating unique serial number:", e);
+  }
+
+  return { serial_no: generatedSerial, ds_no: generatedDS };
+};
+
+
 export default function AdminPage() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -374,10 +406,7 @@ export default function AdminPage() {
         });
       } else {
         // Initialize default Trip Sheet
-        const idParts = booking.id ? booking.id.split("-") : [];
-        const dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
-        const generatedDS = `DS-${dsSuffix}`;
-        const generatedSerial = `TS-${dsSuffix}`;
+        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id);
 
         // Calculate a default end date
         let dateIn = booking.pickup_date;
@@ -561,10 +590,7 @@ export default function AdminPage() {
           service_city: data.service_city || extractDistrictFromAddress(booking.pickup_location)
         };
       } else {
-        const idParts = booking.id ? booking.id.split("-") : [];
-        const dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
-        const generatedDS = `DS-${dsSuffix}`;
-        const generatedSerial = `TS-${dsSuffix}`;
+        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id);
 
         let dateIn = booking.pickup_date;
         try {
@@ -862,6 +888,7 @@ export default function AdminPage() {
             max-width: 100% !important;
             background: transparent !important;
             height: auto !important;
+            overflow: visible !important;
           }
           .print-container {
             display: block !important;
@@ -2645,7 +2672,7 @@ export default function AdminPage() {
                             <tbody>
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>ORGANISATION</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: "bold", fontSize: "11px", fontStyle: tripSheetData.organisation ? "normal" : "italic", color: tripSheetData.organisation ? "inherit" : "#888" }}>{tripSheetData.organisation || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: tripSheetData.organisation ? "bold" : "normal", fontSize: "11px", fontStyle: tripSheetData.organisation ? "normal" : "italic", color: tripSheetData.organisation ? "inherit" : "#e5e5e5" }}>{tripSheetData.organisation || "To be filled"}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>BOOKING NO</td>
                                 <td className="booking-id-cell" style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontWeight: "bold" }}>{tripSheetData.booking_id}</td>
                               </tr>
@@ -2679,29 +2706,29 @@ export default function AdminPage() {
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>DATE</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.date_out}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>KILOMETERS</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.kms_out.toLocaleString("en-IN")} KM</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>TIME</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{formatTimeTo12Hour(tripSheetData.time_out)}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#888" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>REPORTING TIME</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{formatTimeTo12Hour(tripSheetData.reporting_time)}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>CHAUFFEUR</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: tripSheetData.chauffeur_name ? "bold" : "normal", fontStyle: tripSheetData.chauffeur_name ? "normal" : "italic", color: tripSheetData.chauffeur_name ? "inherit" : "#e5e5e5" }}>
                                   {tripSheetData.chauffeur_name ? `${tripSheetData.chauffeur_name} (${tripSheetData.chauffeur_phone})` : "To be filled"}
                                 </td>
                               </tr>
@@ -2710,7 +2737,7 @@ export default function AdminPage() {
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>VEHICLE START TIME</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold" }}>{formatTimeTo12Hour(tripSheetData.vehicle_start_time)}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>VEHICLE NO.</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", fontStyle: tripSheetData.vehicle_no ? "normal" : "italic", color: tripSheetData.vehicle_no ? "inherit" : "#888" }}>{tripSheetData.vehicle_no || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: tripSheetData.vehicle_no ? "bold" : "normal", fontStyle: tripSheetData.vehicle_no ? "normal" : "italic", color: tripSheetData.vehicle_no ? "inherit" : "#e5e5e5" }}>{tripSheetData.vehicle_no || "To be filled"}</td>
                               </tr>
 
                               <tr>
@@ -2733,13 +2760,13 @@ export default function AdminPage() {
                             <tbody>
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>PARKING & TOLL</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.parking_toll ? "normal" : "italic", color: tripSheetData.parking_toll ? "inherit" : "#888" }}>{tripSheetData.parking_toll || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.parking_toll ? "normal" : "italic", color: tripSheetData.parking_toll ? "inherit" : "#e5e5e5" }}>{tripSheetData.parking_toll || "To be filled"}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE CITY</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#888" }}>{tripSheetData.service_city || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#e5e5e5" }}>{tripSheetData.service_city || "To be filled"}</td>
                               </tr>
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST.</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#888" }} colSpan={3}>{tripSheetData.standing_instructions || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#e5e5e5" }} colSpan={3}>{tripSheetData.standing_instructions || "To be filled"}</td>
                               </tr>
                             </tbody>
                           </table>

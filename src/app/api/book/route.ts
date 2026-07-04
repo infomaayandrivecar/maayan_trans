@@ -276,26 +276,37 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
 
   // Also verify with Supabase rows to prevent duplicate sequences if local DB was reset
   try {
-    const { data: recentBookings, error } = await supabase
-      .from("bookings")
-      .select("id")
-      .order("created_at", { ascending: false })
-      .limit(100);
+    // Try using the secure RPC function first
+    const { data: dbNextSeq, error: rpcError } = await supabase.rpc("get_next_booking_sequence");
 
-    if (!error && recentBookings) {
-      for (const rb of recentBookings) {
-        if (rb && typeof rb.id === "string" && newFormatRegex.test(rb.id)) {
-          const parts = rb.id.split("-");
-          const seqPart = parts[parts.length - 1];
-          const seqNum = parseInt(seqPart, 10);
-          if (!isNaN(seqNum) && seqNum > maxSequence) {
-            maxSequence = seqNum;
+    if (!rpcError && dbNextSeq) {
+      const dbSeqNum = parseInt(dbNextSeq, 10) - 1;
+      if (!isNaN(dbSeqNum) && dbSeqNum > maxSequence) {
+        maxSequence = dbSeqNum;
+      }
+    } else {
+      // Graceful fallback to select query (if RLS is open or RPC function doesn't exist yet)
+      const { data: recentBookings, error: selectError } = await supabase
+        .from("bookings")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (!selectError && recentBookings) {
+        for (const rb of recentBookings) {
+          if (rb && typeof rb.id === "string" && newFormatRegex.test(rb.id)) {
+            const parts = rb.id.split("-");
+            const seqPart = parts[parts.length - 1];
+            const seqNum = parseInt(seqPart, 10);
+            if (!isNaN(seqNum) && seqNum > maxSequence) {
+              maxSequence = seqNum;
+            }
           }
         }
       }
     }
   } catch (err) {
-    console.warn("Failed to fetch recent bookings from Supabase:", err);
+    console.warn("Failed to fetch recent bookings sequence from Supabase:", err);
   }
 
   const nextSequenceStr = String(maxSequence + 1).padStart(4, "0");

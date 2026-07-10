@@ -233,8 +233,8 @@ export default function BookingWizard() {
                       {state.tripType === "Round Trip"
                         ? "1 Day Journey"
                         : state.tripType === "Outstation Trip"
-                        ? `${state.numberOfDays} ${state.numberOfDays === 1 ? "Day" : "Days"} Journey`
-                        : `${state.distanceKm ? Number(state.distanceKm).toFixed(2) : "0.00"} km`}
+                          ? `${state.numberOfDays} ${state.numberOfDays === 1 ? "Day" : "Days"} Journey`
+                          : `${state.distanceKm ? Number(state.distanceKm).toFixed(2) : "0.00"} km`}
                     </span>
                   </div>
                   <div className="route-destinations">
@@ -294,7 +294,7 @@ export default function BookingWizard() {
                       {v.isTopPick && (
                         <div className="top-pick-badge label-sm">Top Pick</div>
                       )}
-                      
+
                       <div className="vehicle-image-wrap">
                         <Image
                           src={v.image}
@@ -321,7 +321,7 @@ export default function BookingWizard() {
                         <p className="vehicle-inclusions body-md">
                           {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}. {v.features}
                         </p>
-                        
+
                         <button
                           type="button"
                           className="btn-primary select-car-btn"
@@ -450,7 +450,7 @@ export default function BookingWizard() {
                     </div>
 
                     <div className="input-field-container full-width-field">
-                      <label htmlFor="instructions" className="input-label">Trip Instructions (Optional)</label>
+                      <label htmlFor="instructions" className="input-label">Trip Instructions / Places To Visit (Optional) </label>
                       <div className="input-wrapper">
                         <textarea
                           id="instructions"
@@ -669,7 +669,7 @@ export default function BookingWizard() {
 
       <Footer />
 
-      
+
     </div>
   );
 }

@@ -1814,6 +1814,12 @@ p {
   gap: 1.5rem;
 }
 
+.passenger-form-column .input-wrapper input,
+.passenger-form-column .input-wrapper select,
+.passenger-form-column .input-wrapper textarea {
+  padding-left: 0.9rem;
+}
+
 .section-card-title {
   margin-bottom: 1.5rem;
   display: flex;

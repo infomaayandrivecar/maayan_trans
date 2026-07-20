@@ -541,7 +541,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       runningFare = state.distanceKm * latestRates.ratePerKm;
     }
 
-    const driverFare = days * latestRates.driverAllowancePerDay;
+    const isOutstation = state.tripType === "Outstation Trip";
+    const driverFare = isOutstation ? (days * latestRates.driverAllowancePerDay) : 0;
     const extraCharges = vehicle.tollPermitCharge;
 
     let total = runningFare + (includeDriverAllowance ? driverFare : 0) + extraCharges;

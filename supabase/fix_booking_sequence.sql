@@ -9,9 +9,9 @@ AS $$
   SELECT lpad(
     (COALESCE(
       (
-        SELECT MAX(substring(id from '\d{4}$')::integer)
+        SELECT MAX(substring(id from '[0-9]{4}$')::integer)
         FROM public.bookings
-        WHERE id ~ '^MYN-[A-Z]{3,4}-\d{6}-\d{4}-\d{4}$'
+        WHERE id ~ '^MYN-[A-Z]{3,4}-[0-9]{6}-[0-9]{4}-[0-9]{4}$'
       ),
       0
     ) + 1)::text,

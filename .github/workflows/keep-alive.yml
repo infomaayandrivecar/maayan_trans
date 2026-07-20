@@ -1,0 +1,43 @@
+name: Supabase Keep-Alive Scheduled Ping
+
+on:
+  schedule:
+    # Run every 4 days at midnight UTC
+    - cron: '0 0 */4 * *'
+  # Allow manual trigger from the Actions tab for verification
+  workflow_dispatch:
+
+jobs:
+  ping-keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keep-alive request to Next.js API endpoint
+        run: |
+          if [ -z "${{ secrets.APP_URL }}" ]; then
+            echo "Error: APP_URL secret is not configured in this repository."
+            exit 1
+          fi
+          if [ -z "${{ secrets.KEEP_ALIVE_SECRET }}" ]; then
+            echo "Error: KEEP_ALIVE_SECRET secret is not configured in this repository."
+            exit 1
+          fi
+
+          echo "Pinging keep-alive endpoint for host: ${{ secrets.APP_URL }}"
+          
+          # Fetch the endpoint and capture HTTP status code
+          response=$(curl -sS -w "\n%{http_code}" -H "Authorization: Bearer ${{ secrets.KEEP_ALIVE_SECRET }}" "https://${{ secrets.APP_URL }}/api/keep-alive")
+          
+          # Parse status code (last line of response) and body (all preceding lines)
+          http_status=$(echo "$response" | tail -n1)
+          response_body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Response Status: $http_status"
+          echo "Response Body:"
+          echo "$response_body"
+          
+          if [ "$http_status" -ne 200 ]; then
+            echo "Ping failed: Endpoint returned non-200 HTTP status code."
+            exit 1
+          fi
+          
+          echo "Ping successful!"

@@ -327,7 +327,7 @@ export default function DateTimePicker({
       className="datetime-picker-row"
       style={{
         ...(showDate === false ? { gridTemplateColumns: "1fr" } : {}),
-        zIndex: isOpen ? 130 : undefined,
+        zIndex: isOpen ? 500 : undefined,
       }}
     >
       {/* DATE PICKER FIELD */}

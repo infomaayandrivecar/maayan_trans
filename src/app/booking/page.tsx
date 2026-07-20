@@ -319,7 +319,7 @@ export default function BookingWizard() {
                           </div>
                         )}
                         <p className="vehicle-inclusions body-md">
-                          {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}. {v.features}
+                          {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}. {(state.tripType === "One Way" || state.tripType === "Round Trip") ? v.features.replace(/Driver Betta,\s*/i, "") : v.features}
                         </p>
 
                         <button
@@ -520,12 +520,14 @@ export default function BookingWizard() {
                           <span className="ledger-value">₹{Math.round(getRoundTripHours() * (state.selectedVehicle.roundTripHourRate || 170)).toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      <div className="ledger-row">
-                        <span className="ledger-label">Driver Allowance</span>
-                        <span className="ledger-value">
-                          ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * (state.tripType === "Outstation Trip" ? Math.max(1, state.numberOfDays || 1) : 1)).toLocaleString("en-IN")}
-                        </span>
-                      </div>
+                      {state.tripType === "Outstation Trip" && (
+                        <div className="ledger-row">
+                          <span className="ledger-label">Driver Allowance</span>
+                          <span className="ledger-value">
+                            ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * Math.max(1, state.numberOfDays || 1)).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="extra-charges-alert">

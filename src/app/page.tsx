@@ -153,7 +153,7 @@ export default function Home() {
 
       <main className="main-content">
         {/* HERO SECTION */}
-        <section className="hero-section" style={{ position: 'relative', overflow: 'hidden' }}>
+        <section className="hero-section" style={{ position: 'relative', overflow: 'visible', zIndex: 5 }}>
           {/* Subtle animated background gradient */}
           <motion.div
             className="hero-bg-gradient"

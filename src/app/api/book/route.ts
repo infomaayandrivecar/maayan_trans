@@ -260,7 +260,7 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
   }
 
   // Calculate the highest sequence number from existing IDs in the new format: MYN-[CITY]-[DDMMYY]-[HHMM]-[SEQ]
-  const newFormatRegex = /^MYN-[A-Z]{3,4}-\d{6}-\d{4}-\d{4}$/;
+  const newFormatRegex = /^MYN-[A-Z]{3,4}-[0-9]{6}-[0-9]{4}-[0-9]{4}$/;
   let maxSequence = 0;
 
   for (const b of bookings) {

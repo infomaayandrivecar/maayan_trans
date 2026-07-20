@@ -107,7 +107,7 @@ export default function TimePicker({
   };
 
   return (
-    <div className="picker-wrapper" ref={timePickerRef}>
+    <div className="picker-wrapper" ref={timePickerRef} style={{ zIndex: showTimePicker ? 500 : undefined }}>
       {label && (
         <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>
           {label}

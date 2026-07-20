@@ -1564,7 +1564,7 @@ export default function AdminPage() {
 
                                         {/* Driver Allowance */}
                                         <div className="input-field-container">
-                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Driver Allowance (₹/Day)</label>
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>OutStation Driver Betta  (₹/Day)</label>
                                           <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
                                             <IndianRupee size={14} />
                                             <input

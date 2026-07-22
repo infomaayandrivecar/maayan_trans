@@ -11,7 +11,7 @@ AS $$
       (
         SELECT MAX(substring(id from '[0-9]{4}$')::integer)
         FROM public.bookings
-        WHERE id ~ '^MYN-[A-Z]{3,4}-[0-9]{6}-[0-9]{4}-[0-9]{4}$'
+        WHERE id ~ '^MYN-.*-[0-9]{4}$'
       ),
       0
     ) + 1)::text,

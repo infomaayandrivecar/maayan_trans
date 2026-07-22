@@ -358,5 +358,41 @@
     "carType": "HATCHBACK",
     "distanceKm": 179.884,
     "totalFare": 3868.49
+  },
+  {
+    "id": "MYN-BLR-220726-0543-0021",
+    "createdAt": "2026-07-22T00:13:52.094Z",
+    "fullName": "tesqq",
+    "phoneNumber": "9898989888",
+    "emailAddress": "",
+    "passengersCount": 1,
+    "tripInstructions": "",
+    "tripType": "One Way",
+    "pickupLocation": "Bangalore, Karnataka, India",
+    "dropoffLocation": "Karnataka, India",
+    "pickupDate": "2026-07-30",
+    "pickupTime": "12:00",
+    "numberOfDays": 1,
+    "carType": "SEDAN",
+    "distanceKm": 414.983,
+    "totalFare": 9379.76
+  },
+  {
+    "id": "MYN-BLR-220726-0549-0022",
+    "createdAt": "2026-07-22T00:19:24.490Z",
+    "fullName": "test22222",
+    "phoneNumber": "9789703270",
+    "emailAddress": "",
+    "passengersCount": 1,
+    "tripInstructions": "",
+    "tripType": "One Way",
+    "pickupLocation": "Bangalore, Karnataka, India",
+    "dropoffLocation": "Vijayawada, Andhra Pradesh, India",
+    "pickupDate": "2026-07-24",
+    "pickupTime": "12:05",
+    "numberOfDays": 1,
+    "carType": "PREMIUM SUV",
+    "distanceKm": 673.887,
+    "totalFare": 19257.74
   }
 ]

@@ -30,12 +30,18 @@ ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 -- Drop existing policies if they exist to allow clean re-runs
 DROP POLICY IF EXISTS "Allow anonymous inserts" ON public.bookings;
 DROP POLICY IF EXISTS "Allow authenticated reads" ON public.bookings;
+DROP POLICY IF EXISTS "Allow anonymous reads" ON public.bookings;
 DROP POLICY IF EXISTS "Allow authenticated updates" ON public.bookings;
 
 -- Allow anonymous inserts (for the booking form)
 CREATE POLICY "Allow anonymous inserts" ON public.bookings
   FOR INSERT TO anon
   WITH CHECK (true);
+
+-- Allow anonymous reads (for booking sequence calculation)
+CREATE POLICY "Allow anonymous reads" ON public.bookings
+  FOR SELECT TO anon
+  USING (true);
 
 -- Allow authenticated reads (for dashboard/admin users)
 CREATE POLICY "Allow authenticated reads" ON public.bookings

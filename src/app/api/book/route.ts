@@ -238,6 +238,9 @@ function getBookingDateTimeStrings(): { formattedDate: string; formattedTime: st
   return { formattedDate, formattedTime };
 }
 
+// Module-level sequence tracker to guarantee strictly increasing sequences within process runtime
+let globalMaxSequence = 0;
+
 // Helper to write booking securely to local JSON file
 async function saveBookingToDatabase(bookingData: RawBookingData) {
   const localDataDir = path.join(process.cwd(), "src", "data");
@@ -246,22 +249,39 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
 
   let bookings: any[] = [];
 
-  // Try loading existing bookings to determine the sequence number
+  // Load existing bookings from both local data file and /tmp data file to determine max sequence number
   try {
     if (fs.existsSync(localFilePath)) {
       const fileData = fs.readFileSync(localFilePath, "utf-8");
-      bookings = JSON.parse(fileData);
-    } else if (fs.existsSync(tmpFilePath)) {
-      const fileData = fs.readFileSync(tmpFilePath, "utf-8");
-      bookings = JSON.parse(fileData);
+      const parsed = JSON.parse(fileData);
+      if (Array.isArray(parsed)) {
+        bookings.push(...parsed);
+      }
     }
   } catch (e) {
-    console.warn("Failed to load existing bookings for sequence calculation:", e);
+    console.warn("Failed to load existing local bookings for sequence calculation:", e);
   }
 
-  // Calculate the highest sequence number from existing IDs in the new format: MYN-[CITY]-[DDMMYY]-[HHMM]-[SEQ]
-  const newFormatRegex = /^MYN-[A-Z]{3,4}-[0-9]{6}-[0-9]{4}-[0-9]{4}$/;
-  let maxSequence = 0;
+  try {
+    if (fs.existsSync(tmpFilePath)) {
+      const fileData = fs.readFileSync(tmpFilePath, "utf-8");
+      const parsed = JSON.parse(fileData);
+      if (Array.isArray(parsed)) {
+        const existingIds = new Set(bookings.map((b) => b?.id).filter(Boolean));
+        for (const tb of parsed) {
+          if (tb && tb.id && !existingIds.has(tb.id)) {
+            bookings.push(tb);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to load existing tmp bookings for sequence calculation:", e);
+  }
+
+  // Calculate the highest sequence number from existing IDs in the format: MYN-[CITY]-[DDMMYY]-[HHMM]-[SEQ]
+  const newFormatRegex = /^MYN-.*-[0-9]{4}$/;
+  let maxSequence = globalMaxSequence;
 
   for (const b of bookings) {
     if (b && typeof b.id === "string" && newFormatRegex.test(b.id)) {
@@ -309,7 +329,9 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     console.warn("Failed to fetch recent bookings sequence from Supabase:", err);
   }
 
-  const nextSequenceStr = String(maxSequence + 1).padStart(4, "0");
+  const nextSequence = maxSequence + 1;
+  globalMaxSequence = Math.max(globalMaxSequence, nextSequence);
+  const nextSequenceStr = String(nextSequence).padStart(4, "0");
   const cityCode = getCityCode(bookingData.pickupLocation);
   const { formattedDate, formattedTime } = getBookingDateTimeStrings();
 

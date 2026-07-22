@@ -2698,30 +2698,30 @@ export default function AdminPage() {
                               {/* Sub headers details out in total */}
                               <tr style={{ background: "#f5f5f5" }}>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", color: "#333", fontSize: "10px" }}>DETAILS</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "center", color: "#333", fontSize: "10px" }}>OUT</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "center", color: "#333", fontSize: "10px" }}>IN</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "center", color: "#333", fontSize: "10px" }}>TOTAL</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "left", color: "#333", fontSize: "10px" }}>OUT</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "left", color: "#333", fontSize: "10px" }}>IN</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "bold", textAlign: "left", color: "#333", fontSize: "10px" }}>TOTAL</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>DATE</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.date_out}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left" }}>{tripSheetData.date_out}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>KILOMETERS</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{tripSheetData.kms_out.toLocaleString("en-IN")} KM</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left" }}>{tripSheetData.kms_out.toLocaleString("en-IN")} KM</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>TIME</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center" }}>{formatTimeTo12Hour(tripSheetData.time_out)}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "center", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left" }}>{formatTimeTo12Hour(tripSheetData.time_out)}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
 
                               <tr>
@@ -2765,7 +2765,7 @@ export default function AdminPage() {
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#e5e5e5" }}>{tripSheetData.service_city || "To be filled"}</td>
                               </tr>
                               <tr>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST.</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST./PLACES TO VISIT</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#e5e5e5" }} colSpan={3}>{tripSheetData.standing_instructions || "To be filled"}</td>
                               </tr>
                             </tbody>

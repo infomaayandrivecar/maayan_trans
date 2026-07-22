@@ -281,6 +281,7 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
 
   // Calculate the highest sequence number from existing IDs in the format: MYN-[CITY]-[DDMMYY]-[HHMM]-[SEQ]
   const newFormatRegex = /^MYN-.*-[0-9]{4}$/;
+  const usedSequences = new Set<number>();
   let maxSequence = globalMaxSequence;
 
   for (const b of bookings) {
@@ -288,8 +289,11 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
       const parts = b.id.split("-");
       const seqPart = parts[parts.length - 1];
       const seqNum = parseInt(seqPart, 10);
-      if (!isNaN(seqNum) && seqNum > maxSequence) {
-        maxSequence = seqNum;
+      if (!isNaN(seqNum)) {
+        usedSequences.add(seqNum);
+        if (seqNum > maxSequence) {
+          maxSequence = seqNum;
+        }
       }
     }
   }
@@ -318,8 +322,11 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
             const parts = rb.id.split("-");
             const seqPart = parts[parts.length - 1];
             const seqNum = parseInt(seqPart, 10);
-            if (!isNaN(seqNum) && seqNum > maxSequence) {
-              maxSequence = seqNum;
+            if (!isNaN(seqNum)) {
+              usedSequences.add(seqNum);
+              if (seqNum > maxSequence) {
+                maxSequence = seqNum;
+              }
             }
           }
         }
@@ -329,90 +336,138 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     console.warn("Failed to fetch recent bookings sequence from Supabase:", err);
   }
 
-  const nextSequence = maxSequence + 1;
-  globalMaxSequence = Math.max(globalMaxSequence, nextSequence);
-  const nextSequenceStr = String(nextSequence).padStart(4, "0");
+  let currentSequence = maxSequence + 1;
+  while (usedSequences.has(currentSequence)) {
+    currentSequence++;
+  }
+  let finalBooking: any = null;
+
   const cityCode = getCityCode(bookingData.pickupLocation);
   const { formattedDate, formattedTime } = getBookingDateTimeStrings();
 
-  // Create unique ID and timestamp in the requested format: MYN-CBE-040626-0303-0001
-  const bookingId = `MYN-${cityCode}-${formattedDate}-${formattedTime}-${nextSequenceStr}`;
+  // Retry loop: Attempt to insert into Supabase first.
+  // If Supabase reports a duplicate primary key (ID collision), increment currentSequence and retry!
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const nextSequenceStr = String(currentSequence).padStart(4, "0");
+    const candidateBookingId = `MYN-${cityCode}-${formattedDate}-${formattedTime}-${nextSequenceStr}`;
 
-  const newBooking = {
-    id: bookingId,
-    createdAt: new Date().toISOString(),
-    ...bookingData,
-  };
+    const candidateBooking = {
+      id: candidateBookingId,
+      createdAt: new Date().toISOString(),
+      ...bookingData,
+    };
 
-  let success = false;
+    let isDuplicateKey = false;
 
-  // 1. Try writing to local data directory
+    try {
+      const { error: supabaseError } = await supabase
+        .from("bookings")
+        .insert({
+          id: candidateBooking.id,
+          full_name: bookingData.fullName,
+          phone_number: bookingData.phoneNumber,
+          email_address: bookingData.emailAddress,
+          passengers_count: bookingData.passengersCount,
+          trip_instructions: bookingData.tripInstructions,
+          trip_type: bookingData.tripType,
+          pickup_location: bookingData.pickupLocation,
+          dropoff_location: bookingData.dropoffLocation,
+          pickup_date: bookingData.pickupDate,
+          pickup_time: bookingData.pickupTime,
+          number_of_days: bookingData.numberOfDays,
+          car_type: bookingData.carType,
+          distance_km: bookingData.distanceKm,
+          total_fare: bookingData.totalFare,
+        });
+
+      if (!supabaseError) {
+        console.log(`Booking successfully saved to Supabase with unique ID: ${candidateBooking.id}`);
+      } else {
+        const errMsg = (supabaseError.message || JSON.stringify(supabaseError)).toLowerCase();
+        const errCode = supabaseError.code || "";
+        if (
+          errCode === "23505" ||
+          errMsg.includes("duplicate") ||
+          errMsg.includes("primary key") ||
+          errMsg.includes("unique constraint") ||
+          errMsg.includes("already exists")
+        ) {
+          isDuplicateKey = true;
+          console.warn(`Booking ID ${candidateBookingId} already exists in Supabase. Incrementing sequence to ${currentSequence + 1} and retrying...`);
+        } else {
+          console.error("Supabase save error (non-duplicate):", supabaseError.message || supabaseError);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error connecting to Supabase during insert:", err.message || err);
+    }
+
+    if (isDuplicateKey) {
+      currentSequence++;
+      continue;
+    }
+
+    // Uniqueness confirmed (either inserted to Supabase or Supabase was unreachable)
+    finalBooking = candidateBooking;
+    globalMaxSequence = Math.max(globalMaxSequence, currentSequence);
+    break;
+  }
+
+  if (!finalBooking) {
+    const fallbackSeqStr = String(currentSequence).padStart(4, "0");
+    finalBooking = {
+      id: `MYN-${cityCode}-${formattedDate}-${formattedTime}-${fallbackSeqStr}`,
+      createdAt: new Date().toISOString(),
+      ...bookingData,
+    };
+    globalMaxSequence = Math.max(globalMaxSequence, currentSequence);
+  }
+
+  // Now persist finalBooking to local JSON file & /tmp fallback
+  let localSuccess = false;
   try {
     if (!fs.existsSync(localDataDir)) {
       fs.mkdirSync(localDataDir, { recursive: true });
     }
-
-    // Refresh array to ensure we don't overwrite concurrent updates if file changed
     let freshBookings = [];
     if (fs.existsSync(localFilePath)) {
       const fileData = fs.readFileSync(localFilePath, "utf-8");
-      freshBookings = JSON.parse(fileData);
+      const parsed = JSON.parse(fileData);
+      if (Array.isArray(parsed)) freshBookings = parsed;
     }
-    freshBookings.push(newBooking);
+    const existingIndex = freshBookings.findIndex((b: any) => b?.id === finalBooking.id);
+    if (existingIndex >= 0) {
+      freshBookings[existingIndex] = finalBooking;
+    } else {
+      freshBookings.push(finalBooking);
+    }
     fs.writeFileSync(localFilePath, JSON.stringify(freshBookings, null, 2), "utf-8");
-    success = true;
+    localSuccess = true;
   } catch (localError: any) {
     console.warn(`Failed to write to local directory: ${localError.message || localError}. Retrying with /tmp...`);
   }
 
-  // 2. If local write failed, try writing to /tmp/bookings.json
-  if (!success) {
+  if (!localSuccess) {
     try {
       let freshBookings = [];
       if (fs.existsSync(tmpFilePath)) {
         const fileData = fs.readFileSync(tmpFilePath, "utf-8");
-        freshBookings = JSON.parse(fileData);
+        const parsed = JSON.parse(fileData);
+        if (Array.isArray(parsed)) freshBookings = parsed;
       }
-      freshBookings.push(newBooking);
+      const existingIndex = freshBookings.findIndex((b: any) => b?.id === finalBooking.id);
+      if (existingIndex >= 0) {
+        freshBookings[existingIndex] = finalBooking;
+      } else {
+        freshBookings.push(finalBooking);
+      }
       fs.writeFileSync(tmpFilePath, JSON.stringify(freshBookings, null, 2), "utf-8");
-      success = true;
     } catch (tmpError: any) {
-      console.error(`Failed to write to /tmp file database: ${tmpError.message || tmpError}. Booking details will not be saved locally.`);
+      console.error(`Failed to write to /tmp file database: ${tmpError.message || tmpError}.`);
     }
   }
 
-  // 3. Try writing to Supabase
-  try {
-    const { error: supabaseError } = await supabase
-      .from("bookings")
-      .insert({
-        id: newBooking.id,
-        full_name: bookingData.fullName,
-        phone_number: bookingData.phoneNumber,
-        email_address: bookingData.emailAddress,
-        passengers_count: bookingData.passengersCount,
-        trip_instructions: bookingData.tripInstructions,
-        trip_type: bookingData.tripType,
-        pickup_location: bookingData.pickupLocation,
-        dropoff_location: bookingData.dropoffLocation,
-        pickup_date: bookingData.pickupDate,
-        pickup_time: bookingData.pickupTime,
-        number_of_days: bookingData.numberOfDays,
-        car_type: bookingData.carType,
-        distance_km: bookingData.distanceKm,
-        total_fare: bookingData.totalFare,
-      });
-
-    if (supabaseError) {
-      console.error("Failed to save booking to Supabase:", supabaseError.message || supabaseError);
-    } else {
-      console.log(`Booking successfully saved to Supabase for ${newBooking.id}`);
-    }
-  } catch (err: any) {
-    console.error("Error connecting to Supabase:", err.message || err);
-  }
-
-  return newBooking;
+  return finalBooking;
 }
 
 export async function POST(request: NextRequest) {

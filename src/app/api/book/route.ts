@@ -507,7 +507,7 @@ export async function POST(request: NextRequest) {
             if (settingsData && settingsData.company) {
               localCompany = { ...localCompany, ...settingsData.company };
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         companySettings = {
           ...localCompany,
@@ -995,7 +995,7 @@ export async function POST(request: NextRequest) {
       });
 
       await transporter.sendMail({
-        from: `"${fullName} (via Maayan Trans)" <${smtpUser}>`,
+        from: `"Maayan Trans" <${smtpUser}>`,
         to: toEmailsString,
         replyTo: emailAddress || undefined,
         subject: `[Booking Request] ${tripType} - From ${pickupLocation.split(",")[0]} to ${dropoffLocation.split(",")[0]} (${savedRecord.id})`,

@@ -132,10 +132,45 @@ const VEHICLE_TYPES: Record<string, { label: string; keys: string[] }> = {
   }
 };
 
-const generateUniqueSerialAndDS = async (bookingId: string): Promise<{ serial_no: string; ds_no: string }> => {
+export const generateDSNumber = (organisation: string = "", bookingId: string = "", pickupDate?: string): string => {
+  let orgCode = "IND";
+  if (organisation && organisation.trim().length > 0) {
+    const cleaned = organisation.trim().replace(/[^a-zA-Z0-9]/g, "");
+    if (cleaned.length > 0) {
+      orgCode = cleaned.slice(0, 3).toUpperCase();
+    }
+  }
+
+  let seq = "0000";
+  if (bookingId) {
+    const parts = bookingId.split("-");
+    const lastPart = parts[parts.length - 1];
+    if (/^\d{4}$/.test(lastPart)) {
+      seq = lastPart;
+    } else {
+      const match = bookingId.match(/\d{4}$/);
+      if (match) seq = match[0];
+    }
+  }
+
+  let refDate = new Date();
+  if (pickupDate) {
+    const pDate = new Date(pickupDate);
+    if (!isNaN(pDate.getTime())) refDate = pDate;
+  }
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth();
+  const startYear = month >= 3 ? year : year - 1;
+  const endYear = startYear + 1;
+  const fyStr = `${String(startYear).slice(-2)}-${String(endYear).slice(-2)}`;
+
+  return `MT-${orgCode}-${seq}-${fyStr}`;
+};
+
+const generateUniqueSerialAndDS = async (bookingId: string, organisation: string = "", pickupDate?: string): Promise<{ serial_no: string; ds_no: string }> => {
   const idParts = bookingId ? bookingId.split("-") : [];
   let dsSuffix = idParts.length > 0 ? idParts[idParts.length - 1] : Math.floor(10000 + Math.random() * 90000).toString();
-  let generatedDS = `DS-${dsSuffix}`;
+  let generatedDS = generateDSNumber(organisation, bookingId, pickupDate);
   let generatedSerial = `TS-${dsSuffix}`;
 
   try {
@@ -147,13 +182,11 @@ const generateUniqueSerialAndDS = async (bookingId: string): Promise<{ serial_no
 
     if (existingSerials && existingSerials.length > 0) {
       if (idParts.length >= 3) {
-        // e.g. MYN-CBE-240626-1827-0011 -> 240626-0011
         const datePart = idParts[idParts.length - 3];
         dsSuffix = `${datePart}-${dsSuffix}`;
       } else {
         dsSuffix = `${dsSuffix}-${Math.floor(100 + Math.random() * 900)}`;
       }
-      generatedDS = `DS-${dsSuffix}`;
       generatedSerial = `TS-${dsSuffix}`;
     }
   } catch (e) {
@@ -400,13 +433,15 @@ export default function AdminPage() {
       }
 
       if (data) {
+        const currentDS = (data.ds_no && data.ds_no.startsWith("MT-")) ? data.ds_no : generateDSNumber(data.organisation || "", booking.id, booking.pickup_date);
         setTripSheetData({
           ...data,
+          ds_no: currentDS,
           service_city: data.service_city || extractDistrictFromAddress(booking.pickup_location)
         });
       } else {
         // Initialize default Trip Sheet
-        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id);
+        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id, "", booking.pickup_date);
 
         // Calculate a default end date
         let dateIn = booking.pickup_date;
@@ -423,7 +458,7 @@ export default function AdminPage() {
           ds_no: generatedDS,
           no_of_guests: `${booking.passengers_count} Adults`,
           booked_by: booking.full_name,
-          service_type: booking.trip_type,
+          service_type: booking.trip_type === "Outstation Trip" ? "Outstation" : booking.trip_type,
           address: booking.pickup_location,
           date_out: booking.pickup_date,
           date_in: dateIn,
@@ -480,9 +515,10 @@ export default function AdminPage() {
     setSaveSuccess(false);
 
     try {
+      const { journey_details, ...payload } = tripSheetData as any;
       const { error } = await supabase
         .from("trip_sheets")
-        .upsert(tripSheetData);
+        .upsert(payload);
 
       if (error) {
         alert("Error saving trip sheet: " + error.message);
@@ -583,6 +619,7 @@ export default function AdminPage() {
       if (data) {
         updatedTripSheet = {
           ...data,
+          ds_no: (data.ds_no && data.ds_no.startsWith("MT-")) ? data.ds_no : generateDSNumber(data.organisation || "", booking.id, booking.pickup_date),
           car_allotted: notifyVehicleType,
           vehicle_no: notifyVehicleNumber,
           chauffeur_name: notifyDriverName,
@@ -590,7 +627,7 @@ export default function AdminPage() {
           service_city: data.service_city || extractDistrictFromAddress(booking.pickup_location)
         };
       } else {
-        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id);
+        const { serial_no: generatedSerial, ds_no: generatedDS } = await generateUniqueSerialAndDS(booking.id, "", booking.pickup_date);
 
         let dateIn = booking.pickup_date;
         try {
@@ -606,7 +643,7 @@ export default function AdminPage() {
           ds_no: generatedDS,
           no_of_guests: `${booking.passengers_count} Adults`,
           booked_by: booking.full_name,
-          service_type: booking.trip_type,
+          service_type: booking.trip_type === "Outstation Trip" ? "Outstation" : booking.trip_type,
           address: booking.pickup_location,
           date_out: booking.pickup_date,
           date_in: dateIn,
@@ -2344,7 +2381,15 @@ export default function AdminPage() {
                                 type="text"
                                 placeholder="e.g. Sanofi Healthcare India Pvt Ltd"
                                 value={tripSheetData.organisation}
-                                onChange={(e) => setTripSheetData({ ...tripSheetData, organisation: e.target.value })}
+                                onChange={(e) => {
+                                  const newOrg = e.target.value;
+                                  const newDS = generateDSNumber(newOrg, tripSheetData.booking_id, tripSheetData.date_out);
+                                  setTripSheetData({
+                                    ...tripSheetData,
+                                    organisation: newOrg,
+                                    ds_no: newDS
+                                  });
+                                }}
                               />
                             </div>
                           </div>
@@ -2553,6 +2598,7 @@ export default function AdminPage() {
                               <input
                                 type="number"
                                 style={{ paddingLeft: "1.25rem" }}
+                                placeholder="To be filled"
                                 value={tripSheetData.kms_out || ""}
                                 onChange={(e) => setTripSheetData({ ...tripSheetData, kms_out: parseFloat(e.target.value) || 0 })}
                               />
@@ -2685,12 +2731,12 @@ export default function AdminPage() {
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>REP. ADDRESS</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px" }}>{tripSheetData.address}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>NO OF GUEST</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px" }}>{tripSheetData.no_of_guests}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE TYPE</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "700", color: "#d97706" }}>{tripSheetData.service_type === "Outstation Trip" ? "Outstation" : tripSheetData.service_type}</td>
                               </tr>
                               <tr>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE TYPE</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontWeight: "700", color: "#d97706" }}>{tripSheetData.service_type}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>NO OF GUEST</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px" }}>{tripSheetData.no_of_guests}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>BOOKED BY</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px" }}>{tripSheetData.booked_by}</td>
                               </tr>
@@ -2712,7 +2758,7 @@ export default function AdminPage() {
 
                               <tr>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>KILOMETERS</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left" }}>{tripSheetData.kms_out.toLocaleString("en-IN")} KM</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: tripSheetData.kms_out ? "normal" : "italic", color: tripSheetData.kms_out ? "inherit" : "#e5e5e5" }}>{tripSheetData.kms_out ? `${tripSheetData.kms_out.toLocaleString("en-IN")} KM` : "To be filled"}</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                                 <td style={{ border: "1px solid #111", padding: "8px 12px", textAlign: "left", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
@@ -2759,14 +2805,16 @@ export default function AdminPage() {
                           }}>
                             <tbody>
                               <tr>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>PARKING & TOLL</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.parking_toll ? "normal" : "italic", color: tripSheetData.parking_toll ? "inherit" : "#e5e5e5" }}>{tripSheetData.parking_toll || "To be filled"}</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE CITY</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#e5e5e5" }}>{tripSheetData.service_city || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>PARKING & TOLL</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontStyle: tripSheetData.parking_toll ? "normal" : "italic", color: tripSheetData.parking_toll ? "inherit" : "#e5e5e5" }}>{tripSheetData.parking_toll || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>SERVICE CITY</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontStyle: tripSheetData.service_city ? "normal" : "italic", color: tripSheetData.service_city ? "inherit" : "#e5e5e5" }}>{tripSheetData.service_city || "To be filled"}</td>
                               </tr>
                               <tr>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "25%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST./PLACES TO VISIT</td>
-                                <td style={{ border: "1px solid #111", padding: "8px 12px", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#e5e5e5" }} colSpan={3}>{tripSheetData.standing_instructions || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>STANDING INST.</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontStyle: tripSheetData.standing_instructions ? "normal" : "italic", color: tripSheetData.standing_instructions ? "inherit" : "#e5e5e5" }}>{tripSheetData.standing_instructions || "To be filled"}</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#555", fontSize: "9px", textTransform: "uppercase" }}>JOURNEY DETAILS</td>
+                                <td style={{ border: "1px solid #111", padding: "8px 12px", width: "30%", fontStyle: "italic", color: "#e5e5e5" }}>To be filled</td>
                               </tr>
                             </tbody>
                           </table>

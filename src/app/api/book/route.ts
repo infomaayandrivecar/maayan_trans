@@ -995,7 +995,7 @@ export async function POST(request: NextRequest) {
       });
 
       await transporter.sendMail({
-        from: `"Maayan Trans" <${smtpUser}>`,
+        from: `<${smtpUser}>`,
         to: toEmailsString,
         replyTo: emailAddress || undefined,
         subject: `[Booking Request] ${tripType} - From ${pickupLocation.split(",")[0]} to ${dropoffLocation.split(",")[0]} (${savedRecord.id})`,

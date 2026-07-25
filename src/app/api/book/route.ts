@@ -279,16 +279,15 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     console.warn("Failed to load existing tmp bookings for sequence calculation:", e);
   }
 
-  // Calculate the highest sequence number from existing IDs in the format: MYN-[CITY]-[DDMMYY]-[HHMM]-[SEQ]
-  const newFormatRegex = /^MYN-.*-[0-9]{4}$/;
+  // Calculate the highest sequence number from existing IDs in local files and Supabase
   const usedSequences = new Set<number>();
   let maxSequence = globalMaxSequence;
 
-  for (const b of bookings) {
-    if (b && typeof b.id === "string" && newFormatRegex.test(b.id)) {
-      const parts = b.id.split("-");
-      const seqPart = parts[parts.length - 1];
-      const seqNum = parseInt(seqPart, 10);
+  const extractSequence = (idStr: string) => {
+    if (!idStr || typeof idStr !== "string") return;
+    const match = idStr.match(/-(\d+)$/);
+    if (match) {
+      const seqNum = parseInt(match[1], 10);
       if (!isNaN(seqNum)) {
         usedSequences.add(seqNum);
         if (seqNum > maxSequence) {
@@ -296,39 +295,27 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
         }
       }
     }
+  };
+
+  // 1. Process local/tmp file bookings
+  for (const b of bookings) {
+    if (b && b.id) {
+      extractSequence(b.id);
+    }
   }
 
-  // Also verify with Supabase rows to prevent duplicate sequences if local DB was reset
+  // 2. ALWAYS query Supabase bookings directly to populate usedSequences and find highest sequence number
   try {
-    // Try using the secure RPC function first
-    const { data: dbNextSeq, error: rpcError } = await supabase.rpc("get_next_booking_sequence");
+    const { data: recentBookings, error: selectError } = await supabase
+      .from("bookings")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(500);
 
-    if (!rpcError && dbNextSeq) {
-      const dbSeqNum = parseInt(dbNextSeq, 10) - 1;
-      if (!isNaN(dbSeqNum) && dbSeqNum > maxSequence) {
-        maxSequence = dbSeqNum;
-      }
-    } else {
-      // Graceful fallback to select query (if RLS is open or RPC function doesn't exist yet)
-      const { data: recentBookings, error: selectError } = await supabase
-        .from("bookings")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (!selectError && recentBookings) {
-        for (const rb of recentBookings) {
-          if (rb && typeof rb.id === "string" && newFormatRegex.test(rb.id)) {
-            const parts = rb.id.split("-");
-            const seqPart = parts[parts.length - 1];
-            const seqNum = parseInt(seqPart, 10);
-            if (!isNaN(seqNum)) {
-              usedSequences.add(seqNum);
-              if (seqNum > maxSequence) {
-                maxSequence = seqNum;
-              }
-            }
-          }
+    if (!selectError && recentBookings) {
+      for (const rb of recentBookings) {
+        if (rb && rb.id) {
+          extractSequence(rb.id);
         }
       }
     }
@@ -336,10 +323,28 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     console.warn("Failed to fetch recent bookings sequence from Supabase:", err);
   }
 
-  let currentSequence = maxSequence + 1;
+  // 3. Check RPC if available without skipping select query
+  try {
+    const { data: dbNextSeq, error: rpcError } = await supabase.rpc("get_next_booking_sequence");
+    if (!rpcError && dbNextSeq) {
+      const dbSeqNum = parseInt(dbNextSeq, 10);
+      if (!isNaN(dbSeqNum)) {
+        usedSequences.add(dbSeqNum);
+        if (dbSeqNum > maxSequence) {
+          maxSequence = dbSeqNum;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("RPC check failed:", err);
+  }
+
+  // Calculate next sequence ensuring it is strictly higher than maxSequence AND globalMaxSequence AND not in usedSequences
+  let currentSequence = Math.max(maxSequence + 1, globalMaxSequence + 1);
   while (usedSequences.has(currentSequence)) {
     currentSequence++;
   }
+  globalMaxSequence = Math.max(globalMaxSequence, currentSequence);
   let finalBooking: any = null;
 
   const cityCode = getCityCode(bookingData.pickupLocation);
@@ -994,16 +999,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await transporter.sendMail({
-        from: `<${smtpUser}>`,
+      // Fire-and-forget email dispatch in background to deliver instant UI response (<200ms)
+      transporter.sendMail({
+        from: `"Maayan Trans" <${smtpUser}>`,
         to: toEmailsString,
         replyTo: emailAddress || undefined,
         subject: `[Booking Request] ${tripType} - From ${pickupLocation.split(",")[0]} to ${dropoffLocation.split(",")[0]} (${savedRecord.id})`,
         text: `New Booking received.\nID: ${savedRecord.id}\nPassenger: ${fullName}\nPhone: ${phoneNumber}\nFare: Rs ${Math.round(totalFare)}`,
         html: emailHtml,
+      }).then(() => {
+        console.log(`Booking email successfully sent for ${savedRecord.id}`);
+      }).catch((emailErr) => {
+        console.error(`Failed to send booking notification email for ${savedRecord.id}:`, emailErr);
       });
-
-      console.log(`Booking email successfully sent for ${savedRecord.id}`);
     } else {
       console.warn("==========================================================================");
       console.warn("WARNING: SMTP server credentials are not configured in environment variables.");

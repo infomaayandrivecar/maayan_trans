@@ -219,7 +219,7 @@ export default function BookingWizard() {
 
       <Header />
 
-      <main className="wizard-main-content">
+      <main className="wizard-main-content" style={step === "success" ? { minHeight: "calc(100vh - 80px)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "2rem 0" } : {}}>
         <div className="wizard-wrapper">
           {/* STEP 1: VEHICLE SELECTION */}
           {step === "vehicles" && (
@@ -656,20 +656,12 @@ export default function BookingWizard() {
                   Book Another Ride
                 </button>
               </div>
-
-              {/* Theme toggler aligned to bottom center */}
-              <div className="theme-toggle-bottom">
-                <button type="button" className="btn-secondary theme-toggle-btn" onClick={toggleTheme}>
-                  {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-                  <span>Toggle Theme</span>
-                </button>
-              </div>
             </div>
           )}
         </div>
       </main>
 
-      <Footer />
+      {step !== "success" && <Footer />}
 
 
     </div>

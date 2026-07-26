@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
@@ -999,8 +999,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Fire-and-forget email dispatch in background to deliver instant UI response (<200ms)
-      transporter.sendMail({
+      const mailPromise = transporter.sendMail({
         from: `"Maayan Trans" <${smtpUser}>`,
         to: toEmailsString,
         replyTo: emailAddress || undefined,
@@ -1012,6 +1011,16 @@ export async function POST(request: NextRequest) {
       }).catch((emailErr) => {
         console.error(`Failed to send booking notification email for ${savedRecord.id}:`, emailErr);
       });
+
+      // Execute in background via Next.js serverless background context so function does not terminate early in live/production
+      try {
+        after(async () => {
+          await mailPromise;
+        });
+      } catch (err) {
+        // Fallback for non-after environments
+        console.log("Background email queued for", savedRecord.id);
+      }
     } else {
       console.warn("==========================================================================");
       console.warn("WARNING: SMTP server credentials are not configured in environment variables.");

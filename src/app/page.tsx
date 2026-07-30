@@ -40,6 +40,8 @@ const highlightCities = [
   { name: "Kolkata", x: 70.0, y: 50.0 }
 ];
 
+import { usePickerPlacement } from "./hooks/usePickerPlacement";
+
 export default function Home() {
   const router = useRouter();
   const {
@@ -61,6 +63,7 @@ export default function Home() {
 
   const [showDaysDropdown, setShowDaysDropdown] = useState(false);
   const daysDropdownRef = useRef<HTMLDivElement>(null);
+  const daysOpenUpward = usePickerPlacement(showDaysDropdown, daysDropdownRef, 250);
 
   // Close days dropdown on click outside
   useEffect(() => {
@@ -403,14 +406,15 @@ export default function Home() {
                         <AnimatePresence>
                           {showDaysDropdown && (
                             <motion.div
-                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              initial={{ opacity: 0, y: daysOpenUpward ? -10 : 10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              exit={{ opacity: 0, y: daysOpenUpward ? -10 : 10, scale: 0.95 }}
                               transition={{ duration: 0.15 }}
-                              className="picker-popover card-lowest days-dropdown-popover"
+                              className={`picker-popover card-lowest days-dropdown-popover ${daysOpenUpward ? "popover-above" : ""}`}
                               style={{
                                 position: 'absolute',
-                                top: '105%',
+                                top: daysOpenUpward ? 'auto' : 'calc(100% + 6px)',
+                                bottom: daysOpenUpward ? 'calc(100% + 6px)' : 'auto',
                                 left: 0,
                                 zIndex: 120,
                                 width: '100%',

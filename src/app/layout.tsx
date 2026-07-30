@@ -33,12 +33,29 @@ export const metadata: Metadata = {
   keywords: "intercity taxi, Coimbatore taxi, premium cab service, long distance travel, outstation cabs, Maayan Trans, reliable taxi",
   authors: [{ name: "Maayan Trans & Services" }],
   robots: "index, follow",
+  icons: {
+    icon: [
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico", sizes: "32x32" }
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
+    ]
+  },
   openGraph: {
     title: "Maayan Trans & Services | Premium Inter-City Cab",
     description: "Experience premium inter-city travel with Maayan Trans & Services. Certified drivers, comfortable fleet, and 24/7 support.",
     type: "website",
     locale: "en_IN",
     siteName: "Maayan Trans & Services",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: "Maayan Trans Logo",
+      }
+    ]
   }
 };
 

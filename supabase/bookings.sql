@@ -18,11 +18,15 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   car_type TEXT NOT NULL,
   distance_km NUMERIC NOT NULL,
   total_fare NUMERIC NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Active', 'Completed')),
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Active', 'Completed', 'Cancelled')),
   driver_name TEXT,
   driver_phone TEXT,
   vehicle_no TEXT
 );
+
+-- Migration query if adding 'Cancelled' to an existing Supabase table:
+-- ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+-- ALTER TABLE public.bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Active', 'Completed', 'Cancelled'));
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;

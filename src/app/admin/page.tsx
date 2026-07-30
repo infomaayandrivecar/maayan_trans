@@ -15,6 +15,33 @@ import DateTimePicker from "../components/DateTimePicker";
 import TimePicker from "../components/TimePicker";
 import { useBooking } from "../context/BookingContext";
 
+const InstagramIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+  </svg>
+);
+
+const FacebookIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+  </svg>
+);
+
+const TwitterIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path>
+  </svg>
+);
+
+const YouTubeIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-1.96C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 1.96A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-1.96 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.37z"></path>
+    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+  </svg>
+);
+
 interface Booking {
   id: string;
   created_at: string;
@@ -32,11 +59,113 @@ interface Booking {
   car_type: string;
   distance_km: number;
   total_fare: number;
-  status?: "Pending" | "Active" | "Completed";
+  status?: "Pending" | "Active" | "Completed" | "Cancelled";
   driver_name?: string;
   driver_phone?: string;
   vehicle_no?: string;
 }
+
+// Helper function to evaluate automated trip status based on assignment and completion rules
+const evaluateBookingStatus = (b: Booking): "Pending" | "Active" | "Completed" | "Cancelled" => {
+  const hasDriver = Boolean(b.driver_name && b.driver_name.trim() !== "" && b.driver_phone && b.driver_phone.trim() !== "");
+  const hasVehicle = Boolean(b.vehicle_no && b.vehicle_no.trim() !== "");
+  const hasBothAssigned = hasDriver && hasVehicle;
+
+  let startDate: Date;
+  try {
+    if (b.pickup_date && b.pickup_date.includes("-")) {
+      const [year, month, day] = b.pickup_date.split("-").map(Number);
+      if (year && month && day) {
+        startDate = new Date(year, month - 1, day);
+      } else {
+        startDate = new Date(b.pickup_date);
+      }
+    } else {
+      startDate = new Date(b.pickup_date);
+    }
+  } catch (e) {
+    startDate = new Date();
+  }
+
+  if (isNaN(startDate.getTime())) {
+    startDate = new Date();
+  }
+
+  if (b.pickup_time) {
+    try {
+      const cleaned = b.pickup_time.trim().toUpperCase();
+      let hours = 9;
+      let minutes = 0;
+      if (cleaned.includes("AM") || cleaned.includes("PM")) {
+        const isPM = cleaned.includes("PM");
+        const timePart = cleaned.replace(/AM|PM/g, "").trim();
+        const parts = timePart.split(":");
+        hours = parseInt(parts[0], 10) || 0;
+        minutes = parseInt(parts[1], 10) || 0;
+        if (isPM && hours < 12) hours += 12;
+        if (!isPM && hours === 12) hours = 0;
+      } else {
+        const parts = cleaned.split(":");
+        hours = parseInt(parts[0], 10) || 0;
+        minutes = parseInt(parts[1], 10) || 0;
+      }
+      startDate.setHours(hours, minutes, 0, 0);
+    } catch (e) {
+      startDate.setHours(9, 0, 0, 0);
+    }
+  } else {
+    startDate.setHours(9, 0, 0, 0);
+  }
+
+  const days = b.number_of_days && b.number_of_days > 0 ? b.number_of_days : 1;
+  // 12 hours after actual trip completion time.
+  // Standard trip duration per day = 12h. Cutoff time (12h post completion) = startDate + (days * 24h).
+  const cutoffTime = startDate.getTime() + (days * 24 * 60 * 60 * 1000);
+  const now = new Date().getTime();
+
+  if (now >= cutoffTime) {
+    return hasBothAssigned ? "Completed" : "Cancelled";
+  }
+
+  if ((!b.status || b.status === "Pending") && hasBothAssigned) {
+    return "Active";
+  }
+
+  return b.status || "Pending";
+};
+
+// Batch sync helper for auto-updating booking statuses in Supabase and state
+const autoSyncBookingStatuses = async (rawBookings: Booking[]): Promise<Booking[]> => {
+  if (!rawBookings || rawBookings.length === 0) return [];
+  const updatedBookings = [...rawBookings];
+  const updatePromises: Promise<any>[] = [];
+
+  for (let i = 0; i < updatedBookings.length; i++) {
+    const b = updatedBookings[i];
+    const targetStatus = evaluateBookingStatus(b);
+    if (b.status !== targetStatus) {
+      updatedBookings[i] = { ...b, status: targetStatus };
+      updatePromises.push(
+        Promise.resolve(
+          supabase
+            .from("bookings")
+            .update({ status: targetStatus })
+            .eq("id", b.id)
+        )
+      );
+    }
+  }
+
+  if (updatePromises.length > 0) {
+    try {
+      await Promise.all(updatePromises);
+    } catch (e) {
+      console.error("Error auto-updating booking statuses:", e);
+    }
+  }
+
+  return updatedBookings;
+};
 
 interface TripSheet {
   booking_id: string;
@@ -224,6 +353,7 @@ export default function AdminPage() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [tripTypeFilter, setTripTypeFilter] = useState<"All" | "One Way" | "Round Trip" | "Outstation Trip">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Active" | "Completed" | "Cancelled">("All");
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
   // Pagination State
@@ -262,6 +392,10 @@ export default function AdminPage() {
   const [settingsMarquee, setSettingsMarquee] = useState("");
   const [settingsGst, setSettingsGst] = useState("");
   const [settingsPan, setSettingsPan] = useState("");
+  const [settingsInstagramUrl, setSettingsInstagramUrl] = useState("");
+  const [settingsFacebookUrl, setSettingsFacebookUrl] = useState("");
+  const [settingsTwitterUrl, setSettingsTwitterUrl] = useState("");
+  const [settingsYoutubeUrl, setSettingsYoutubeUrl] = useState("");
   const [settingsEmails, setSettingsEmails] = useState<string[]>(["info.maayandrivecar@gmail.com"]);
   const [newEmailInput, setNewEmailInput] = useState("");
   const [settingsVehicles, setSettingsVehicles] = useState<Record<string, { ratePerKm: number; driverAllowancePerDay: number; oneWayMinKmPerHour?: number; oneWayHourRate?: number; roundTripHourRate?: number; outstationHourRate?: number; outstationMinKmPerDay?: number; outstationHoursPerDay?: number; }>>({});
@@ -287,6 +421,10 @@ export default function AdminPage() {
         setSettingsMarquee(data.company?.marqueeText || "");
         setSettingsGst(data.company?.gst || "");
         setSettingsPan(data.company?.pan || "");
+        setSettingsInstagramUrl(data.company?.instagramUrl || "");
+        setSettingsFacebookUrl(data.company?.facebookUrl || "");
+        setSettingsTwitterUrl(data.company?.twitterUrl || "");
+        setSettingsYoutubeUrl(data.company?.youtubeUrl || "");
         setSettingsEmails(data.company?.notificationEmails || ["info.maayandrivecar@gmail.com"]);
         setSettingsVehicles(data.vehicles || {});
         setSettingsMinKmOneWay(data.company?.minKmOneWay !== undefined ? Number(data.company.minKmOneWay) : 5);
@@ -315,7 +453,11 @@ export default function AdminPage() {
           pan: settingsPan,
           minKmOneWay: settingsMinKmOneWay,
           minKmRoundTrip: settingsMinKmRoundTrip,
-          minKmOutstation: settingsMinKmOutstation
+          minKmOutstation: settingsMinKmOutstation,
+          instagramUrl: settingsInstagramUrl,
+          facebookUrl: settingsFacebookUrl,
+          twitterUrl: settingsTwitterUrl,
+          youtubeUrl: settingsYoutubeUrl
         },
         vehicles: settingsVehicles
       };
@@ -384,7 +526,8 @@ export default function AdminPage() {
       if (error) {
         setFetchError(error.message);
       } else {
-        setBookings(data || []);
+        const synced = await autoSyncBookingStatuses(data || []);
+        setBookings(synced);
       }
     } catch (err: any) {
       setFetchError(err.message || "Failed to fetch bookings");
@@ -398,6 +541,19 @@ export default function AdminPage() {
       fetchBookings();
     }
   }, [session]);
+
+  // Periodic interval to automatically evaluate and transition booking statuses (every 30 seconds)
+  useEffect(() => {
+    if (!session || bookings.length === 0) return;
+    const interval = setInterval(async () => {
+      const synced = await autoSyncBookingStatuses(bookings);
+      const hasChange = synced.some((b, idx) => b.status !== bookings[idx]?.status);
+      if (hasChange) {
+        setBookings(synced);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [session, bookings]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -519,7 +675,7 @@ export default function AdminPage() {
   };
 
   const handleSaveTripSheet = async () => {
-    if (!tripSheetData) return;
+    if (!tripSheetData || !activeTripSheetBooking) return;
     setTripSheetSaving(true);
     setSaveSuccess(false);
 
@@ -532,6 +688,37 @@ export default function AdminPage() {
       if (error) {
         alert("Error saving trip sheet: " + error.message);
       } else {
+        const hasDriver = Boolean(tripSheetData.chauffeur_name?.trim() && tripSheetData.chauffeur_phone?.trim());
+        const hasVehicle = Boolean(tripSheetData.vehicle_no?.trim());
+        const hasBoth = hasDriver && hasVehicle;
+        const newStatus = (activeTripSheetBooking.status === "Pending" || !activeTripSheetBooking.status) && hasBoth ? "Active" : activeTripSheetBooking.status;
+
+        await supabase
+          .from("bookings")
+          .update({
+            driver_name: tripSheetData.chauffeur_name,
+            driver_phone: tripSheetData.chauffeur_phone,
+            vehicle_no: tripSheetData.vehicle_no,
+            car_type: tripSheetData.car_allotted || activeTripSheetBooking.car_type,
+            status: newStatus
+          })
+          .eq("id", activeTripSheetBooking.id);
+
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === activeTripSheetBooking.id
+              ? {
+                ...b,
+                driver_name: tripSheetData.chauffeur_name,
+                driver_phone: tripSheetData.chauffeur_phone,
+                vehicle_no: tripSheetData.vehicle_no,
+                car_type: tripSheetData.car_allotted || b.car_type,
+                status: newStatus
+              }
+              : b
+          )
+        );
+
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
       }
@@ -542,7 +729,17 @@ export default function AdminPage() {
     }
   };
 
-  const updateStatus = async (bookingId: string, newStatus: "Pending" | "Active" | "Completed") => {
+  const updateStatus = async (bookingId: string, newStatus: "Pending" | "Active" | "Completed" | "Cancelled") => {
+    const targetBooking = bookings.find((b) => b.id === bookingId);
+    if (newStatus === "Active" && targetBooking) {
+      const hasDriver = Boolean(targetBooking.driver_name?.trim() && targetBooking.driver_phone?.trim());
+      const hasVehicle = Boolean(targetBooking.vehicle_no?.trim());
+      if (!hasDriver || !hasVehicle) {
+        alert("The trip status can change to Active only after both driver details (Name & Mobile) and vehicle details (Vehicle Number) have been assigned.");
+        return;
+      }
+    }
+
     try {
       const { error } = await supabase
         .from("bookings")
@@ -596,6 +793,11 @@ export default function AdminPage() {
   const saveNotifyDetails = async (booking: Booking, quiet = false) => {
     setNotifySaving(true);
     try {
+      const hasDriver = Boolean(notifyDriverName?.trim() && notifyDriverPhone?.trim());
+      const hasVehicle = Boolean(notifyVehicleNumber?.trim());
+      const hasBoth = hasDriver && hasVehicle;
+      const newStatus = (booking.status === "Pending" || !booking.status) && hasBoth ? "Active" : booking.status;
+
       // 1. Update public.bookings table with driver and vehicle info
       const { error: bookingError } = await supabase
         .from("bookings")
@@ -603,7 +805,8 @@ export default function AdminPage() {
           car_type: notifyVehicleType,
           driver_name: notifyDriverName,
           driver_phone: notifyDriverPhone,
-          vehicle_no: notifyVehicleNumber
+          vehicle_no: notifyVehicleNumber,
+          status: newStatus
         })
         .eq("id", booking.id);
 
@@ -690,7 +893,8 @@ export default function AdminPage() {
                 car_type: notifyVehicleType,
                 driver_name: notifyDriverName,
                 driver_phone: notifyDriverPhone,
-                vehicle_no: notifyVehicleNumber
+                vehicle_no: notifyVehicleNumber,
+                status: newStatus
               }
               : b
           )
@@ -753,6 +957,11 @@ export default function AdminPage() {
     const companyPhone = settingsPhone || "+91 98942 21664";
     const companyEmail = settingsEmail || "info.maayandrivecar@gmail.com";
 
+    const daysCount = notifyBooking.number_of_days || 1;
+    const durationLine = (notifyBooking.trip_type === "Outstation Trip" || notifyBooking.trip_type === "Round Trip")
+      ? `\n• Duration: ${daysCount} ${daysCount === 1 ? "Day" : "Days"}`
+      : "";
+
     const message = `*Booking Confirmed!*\n\n` +
       `Hello ${notifyBooking.full_name},\n\n` +
       `Thank you for booking with *Maayan Trans & Services*.\n\n` +
@@ -764,9 +973,11 @@ export default function AdminPage() {
       `• Name: ${notifyDriverName || "Assigned Soon"}\n` +
       `• Mobile: ${notifyDriverPhone || "Assigned Soon"}\n\n` +
       `*Journey Information*\n` +
+      `• Trip Type: ${notifyBooking.trip_type}\n` +
       `• Pickup: ${notifyBooking.pickup_location}\n` +
       `• Drop-off: ${notifyBooking.dropoff_location}\n` +
-      `• Date & Time: ${formattedDateTime}\n\n` +
+      `• Date & Time: ${formattedDateTime}` +
+      `${durationLine}\n\n` +
       `Have a pleasant and safe journey. If you require any support, please contact us at ${companyPhone} or ${companyEmail}.\n\n` +
       `Thank you for choosing *Maayan Trans & Services*.`;
 
@@ -826,7 +1037,10 @@ export default function AdminPage() {
     const matchesTripType =
       tripTypeFilter === "All" || booking.trip_type === tripTypeFilter;
 
-    return matchesSearch && matchesTripType;
+    const matchesStatus =
+      statusFilter === "All" || (booking.status || "Pending") === statusFilter;
+
+    return matchesSearch && matchesTripType && matchesStatus;
   });
 
   // Pagination calculations
@@ -842,7 +1056,7 @@ export default function AdminPage() {
     } else if (totalPages === 0) {
       setCurrentPage(1);
     }
-  }, [searchQuery, tripTypeFilter, totalPages, currentPage]);
+  }, [searchQuery, tripTypeFilter, statusFilter, totalPages, currentPage]);
 
   // Calculate quick stats
   const totalRevenue = bookings
@@ -850,6 +1064,8 @@ export default function AdminPage() {
     .reduce((sum, b) => sum + (b.total_fare || 0), 0);
   const completedTripsCount = bookings.filter(b => b.status === "Completed").length;
   const activeTripsCount = bookings.filter(b => b.status === "Active").length;
+  const pendingTripsCount = bookings.filter(b => b.status === "Pending" || !b.status).length;
+  const cancelledTripsCount = bookings.filter(b => b.status === "Cancelled").length;
 
   const toggleExpand = (id: string) => {
     setExpandedBookingId(expandedBookingId === id ? null : id);
@@ -884,9 +1100,9 @@ export default function AdminPage() {
           transform: translate(-50%, -50%) rotate(-45deg);
           font-size: 100px;
           font-weight: 800;
-          color: rgba(0, 0, 0, 0.04);
+          color: rgba(0, 0, 0, 0.08);
           white-space: nowrap;
-          z-index: -1;
+          z-index: 10;
           pointer-events: none;
           font-family: var(--font-display);
         }
@@ -1170,6 +1386,11 @@ export default function AdminPage() {
           color: #10b981 !important;
           border: 1px solid rgba(16, 185, 129, 0.2);
         }
+        .status-badge.cancelled {
+          background-color: rgba(239, 68, 68, 0.1) !important;
+          color: #ef4444 !important;
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        }
 
         /* Status selector buttons styling */
         .status-btn {
@@ -1431,6 +1652,62 @@ export default function AdminPage() {
                             value={settingsPan}
                             onChange={(e) => setSettingsPan(e.target.value)}
                             placeholder="e.g. MAAYN1234F"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-instagram">Instagram Profile URL</label>
+                        <div className="input-wrapper">
+                          <InstagramIcon size={18} />
+                          <input
+                            id="settings-instagram"
+                            type="url"
+                            value={settingsInstagramUrl}
+                            onChange={(e) => setSettingsInstagramUrl(e.target.value)}
+                            placeholder="e.g. https://instagram.com/maayantrans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-facebook">Facebook Page URL</label>
+                        <div className="input-wrapper">
+                          <FacebookIcon size={18} />
+                          <input
+                            id="settings-facebook"
+                            type="url"
+                            value={settingsFacebookUrl}
+                            onChange={(e) => setSettingsFacebookUrl(e.target.value)}
+                            placeholder="e.g. https://facebook.com/maayantrans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-twitter">Twitter (X) Profile URL</label>
+                        <div className="input-wrapper">
+                          <TwitterIcon size={18} />
+                          <input
+                            id="settings-twitter"
+                            type="url"
+                            value={settingsTwitterUrl}
+                            onChange={(e) => setSettingsTwitterUrl(e.target.value)}
+                            placeholder="e.g. https://x.com/maayantrans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="input-field-container">
+                        <label className="input-label" htmlFor="settings-youtube">YouTube Channel URL</label>
+                        <div className="input-wrapper">
+                          <YouTubeIcon size={18} />
+                          <input
+                            id="settings-youtube"
+                            type="url"
+                            value={settingsYoutubeUrl}
+                            onChange={(e) => setSettingsYoutubeUrl(e.target.value)}
+                            placeholder="e.g. https://youtube.com/@maayantrans"
                           />
                         </div>
                       </div>
@@ -1936,19 +2213,38 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <span className="input-label" style={{ margin: 0 }}>Trip Type:</span>
-                    <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
-                      <select
-                        value={tripTypeFilter}
-                        onChange={(e: any) => setTripTypeFilter(e.target.value)}
-                        style={{ padding: "0.5rem 2rem 0.5rem 1rem", border: "none", background: "transparent", color: "var(--on-surface)", cursor: "pointer" }}
-                      >
-                        <option value="All">All Types</option>
-                        <option value="One Way">One Way</option>
-                        <option value="Round Trip">Round Trip</option>
-                        <option value="Outstation Trip">Outstation Trip</option>
-                      </select>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <span className="input-label" style={{ margin: 0 }}>Trip Type:</span>
+                      <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
+                        <select
+                          value={tripTypeFilter}
+                          onChange={(e: any) => setTripTypeFilter(e.target.value)}
+                          style={{ padding: "0.5rem 2rem 0.5rem 1rem", border: "none", background: "transparent", color: "var(--on-surface)", cursor: "pointer" }}
+                        >
+                          <option value="All">All Types</option>
+                          <option value="One Way">One Way</option>
+                          <option value="Round Trip">Round Trip</option>
+                          <option value="Outstation Trip">Outstation Trip</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="trip-type-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <span className="input-label" style={{ margin: 0 }}>Status:</span>
+                      <div className="input-wrapper" style={{ paddingRight: "0.5rem" }}>
+                        <select
+                          value={statusFilter}
+                          onChange={(e: any) => setStatusFilter(e.target.value)}
+                          style={{ padding: "0.5rem 2rem 0.5rem 1rem", border: "none", background: "transparent", color: "var(--on-surface)", cursor: "pointer" }}
+                        >
+                          <option value="All">All Statuses</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Active">Active</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2101,7 +2397,7 @@ export default function AdminPage() {
                                   <div>
                                     <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Status</h4>
                                     <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
-                                      {(["Pending", "Active", "Completed"] as const).map((statusOption) => {
+                                      {(["Pending", "Active", "Completed", "Cancelled"] as const).map((statusOption) => {
                                         const isSelected = (booking.status || "Pending") === statusOption;
                                         return (
                                           <button
@@ -2744,7 +3040,7 @@ export default function AdminPage() {
                                 <td style={{ border: "1px solid #000", padding: "0 12px", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>REP. ADDRESS</td>
                                 <td style={{ border: "1px solid #000", padding: "0 12px" }}>{tripSheetData.address}</td>
                                 <td style={{ border: "1px solid #000", padding: "0 12px", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>SERVICE TYPE</td>
-                                <td style={{ border: "1px solid #000", padding: "0 12px", fontWeight: "700", color: "#d97706" }}>{formatServiceType(tripSheetData.service_type)}</td>
+                                <td style={{ border: "1px solid #000", padding: "0 12px", fontWeight: "700", color: "#000" }}>{formatServiceType(tripSheetData.service_type)}</td>
                               </tr>
                               <tr>
                                 <td style={{ border: "1px solid #000", padding: "0 12px", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>NO OF GUEST</td>
@@ -2834,10 +3130,10 @@ export default function AdminPage() {
                           }}>
                             <tbody>
                               <tr>
-                                <td style={{ border: "1px solid #000", padding: "0 14px", width: "55%", verticalAlign: "top", fontSize: "10px", lineHeight: "1.6", color: "#222" }}>
+                                <td style={{ border: "2px solid #000", padding: "0 14px", width: "55%", verticalAlign: "top", fontSize: "10px", lineHeight: "1.6", color: "#222" }}>
                                   I confirm that I am responsible for full payment of this bill in the event that the bill is not paid by the organisation or person indicated.
                                 </td>
-                                <td style={{ border: "1px solid #000", padding: "0 14px", width: "45%", verticalAlign: "bottom", textAlign: "center" }}>
+                                <td style={{ border: "2px solid #000", padding: "0 14px", width: "45%", verticalAlign: "bottom", textAlign: "center" }}>
                                   <div style={{ height: "48px" }} />
                                   <div style={{ borderTop: "1px solid #000", paddingTop: "6px", fontSize: "9px", fontWeight: "bold", color: "#333", letterSpacing: "1px", textTransform: "uppercase" }}>
                                     ✏️ &nbsp; Signature

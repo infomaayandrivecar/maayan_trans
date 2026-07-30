@@ -64,6 +64,10 @@ export interface CompanySettings {
   minKmOneWay?: number;
   minKmRoundTrip?: number;
   minKmOutstation?: number;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  twitterUrl?: string;
+  youtubeUrl?: string;
 }
 
 export interface VehicleSettings {
@@ -91,7 +95,11 @@ export const DEFAULT_SETTINGS: SettingsData = {
     notificationEmails: ["info.maayandrivecar@gmail.com"],
     minKmOneWay: 5,
     minKmRoundTrip: 5,
-    minKmOutstation: 100
+    minKmOutstation: 100,
+    instagramUrl: "",
+    facebookUrl: "",
+    twitterUrl: "",
+    youtubeUrl: ""
   },
   vehicles: {
     hatchback: { ratePerKm: 13, driverAllowancePerDay: 300, oneWayMinKmPerHour: 20, oneWayHourRate: 170, roundTripHourRate: 170, outstationHourRate: 170, outstationMinKmPerDay: 250, outstationHoursPerDay: 16 },

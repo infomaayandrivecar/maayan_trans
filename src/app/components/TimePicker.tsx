@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Clock, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePickerPlacement } from "../hooks/usePickerPlacement";
 
 interface TimePickerProps {
   time: string; // HH:MM (24h)
@@ -19,6 +20,7 @@ export default function TimePicker({
 }: TimePickerProps) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const timePickerRef = useRef<HTMLDivElement>(null);
+  const timeOpenUpward = usePickerPlacement(showTimePicker, timePickerRef, 310);
 
   // Time Picker State (Temporary state until "Confirm" is clicked)
   const [tempHour, setTempHour] = useState<number>(12);
@@ -137,15 +139,17 @@ export default function TimePicker({
         {showTimePicker && (
           <motion.div
             key="timepicker-popover"
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            exit={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="picker-popover card-lowest"
+            className={`picker-popover card-lowest ${timeOpenUpward ? "popover-above" : ""}`}
             style={{
               left: 0,
               right: "auto",
               width: "260px",
+              top: timeOpenUpward ? "auto" : "calc(100% + 6px)",
+              bottom: timeOpenUpward ? "calc(100% + 6px)" : "auto",
             }}
           >
             <div className="time-picker-title">Select {label || "Time"}</div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { MapPin, Loader2, X } from "lucide-react";
+import { MapPin, Loader2, X, Navigation } from "lucide-react";
 import { Place } from "../context/BookingContext";
 
 interface PlacesAutocompleteProps {
@@ -32,6 +32,9 @@ export default function PlacesAutocomplete({
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cacheRef = useRef<Record<string, Prediction[]>>({});
@@ -123,9 +126,63 @@ export default function PlacesAutocomplete({
     }
   };
 
+  const handleUseCurrentLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          const res = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+          const data = await res.json();
+
+          if (data.result) {
+            const displayAddress = data.result.formatted_address || data.result.name;
+            setQuery(displayAddress);
+            setShowDropdown(false);
+            onSelect({
+              name: data.result.name,
+              formattedAddress: data.result.formatted_address,
+              lat: data.result.lat,
+              lng: data.result.lng,
+            });
+          }
+        } catch (err) {
+          console.error("Reverse geocoding error:", err);
+          setLocationError("Failed to resolve address for your position.");
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (err) => {
+        console.error("Geolocation error:", err);
+        setIsLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationError("Location access denied. Please allow location permissions in your browser.");
+        } else {
+          setLocationError("Unable to retrieve GPS location. Please try searching manually.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000
+      }
+    );
+  };
+
   const handleClear = () => {
     setQuery("");
     setPredictions([]);
+    setLocationError(null);
     onSelect(null);
   };
 
@@ -140,6 +197,7 @@ export default function PlacesAutocomplete({
           onChange={(e) => {
             const val = e.target.value;
             setQuery(val);
+            setLocationError(null);
             const trimmed = val.trim();
             if (trimmed.length < 3) {
               setPredictions([]);
@@ -168,8 +226,38 @@ export default function PlacesAutocomplete({
         )}
       </div>
 
-      {showDropdown && predictions.length > 0 && (
+      {showDropdown && (
         <div className="predictions-dropdown card-lowest animate-fade-in">
+          {/* Current Location Option */}
+          <button
+            type="button"
+            className="prediction-row current-location-row"
+            onClick={handleUseCurrentLocation}
+            disabled={isLocating}
+          >
+            {isLocating ? (
+              <Loader2 size={16} className="location-pin-icon loader-spinner-inline" />
+            ) : (
+              <Navigation size={16} className="location-pin-icon current-loc-icon" />
+            )}
+            <div className="prediction-details">
+              <span className="main-text current-loc-title">
+                {isLocating ? "Locating position..." : "Use Current Location"}
+              </span>
+              <span className="secondary-text">
+                {isLocating ? "Fetching address via GPS..." : "Detect address automatically"}
+              </span>
+            </div>
+          </button>
+
+          {locationError && (
+            <div className="location-error-banner">
+              {locationError}
+            </div>
+          )}
+
+          {predictions.length > 0 && <div className="dropdown-divider" />}
+
           {predictions.map((pred) => (
             <button
               key={pred.place_id}
@@ -259,7 +347,7 @@ export default function PlacesAutocomplete({
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-ambient);
           padding: 0.5rem 0;
-          max-height: 260px;
+          max-height: 280px;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
@@ -278,6 +366,34 @@ export default function PlacesAutocomplete({
         }
         .prediction-row:hover {
           background-color: var(--surface-container-high);
+        }
+        .current-location-row {
+          color: var(--primary);
+        }
+        .current-loc-icon {
+          color: var(--primary) !important;
+          opacity: 1 !important;
+        }
+        .current-loc-title {
+          color: var(--primary) !important;
+        }
+        .loader-spinner-inline {
+          animation: spin 1s linear infinite;
+          color: var(--primary) !important;
+        }
+        .dropdown-divider {
+          height: 1px;
+          background-color: var(--outline-variant);
+          margin: 0.35rem 0;
+          opacity: 0.5;
+        }
+        .location-error-banner {
+          padding: 0.5rem 1.2rem;
+          font-size: 0.75rem;
+          color: #ef4444;
+          background-color: rgba(239, 68, 68, 0.1);
+          border-radius: 4px;
+          margin: 0.25rem 0.75rem;
         }
         .location-pin-icon {
           color: var(--on-surface) !important;

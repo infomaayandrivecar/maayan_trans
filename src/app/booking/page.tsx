@@ -186,7 +186,8 @@ export default function BookingWizard() {
     if (!state.pickupDate) return "";
     const [year, month, day] = state.pickupDate.split("-").map(Number);
     const pDate = new Date(year, month - 1, day);
-    pDate.setDate(pDate.getDate() + state.numberOfDays);
+    const daysToAdd = state.numberOfDays && state.numberOfDays > 0 ? state.numberOfDays - 1 : 0;
+    pDate.setDate(pDate.getDate() + daysToAdd);
     return pDate.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -534,8 +535,8 @@ export default function BookingWizard() {
                       <h4 className="alert-title label-sm">Extra Fare Details</h4>
                       <p className="alert-content body-md">
                         {state.tripType === "Outstation Trip"
-                          ? "For Extra Km, Outstation Allowance & Hill Toll charges will be calculated extra during journey if applicable."
-                          : "For Extra Km & Hill Toll charges will be calculated extra during journey if applicable."}
+                          ? "For Extra Km, Extra time, Outstation Allowance & Hill Toll charges will be calculated extra during journey if applicable."
+                          : "For Extra Km, Extra time, & Hill Toll charges will be calculated extra during journey if applicable."}
                       </p>
                     </div>
 

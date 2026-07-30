@@ -1458,6 +1458,33 @@ p {
   color: rgba(255, 255, 255, 0.6);
 }
 
+.footer-social-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.social-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  transition: all var(--transition-fast);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.social-icon-btn:hover {
+  background-color: #ffb300;
+  color: #111111;
+  border-color: #ffb300;
+  transform: translateY(-2px);
+}
+
 .footer-bottom {
   max-width: 1200px;
   margin: 0 auto;
@@ -2253,6 +2280,11 @@ p {
   box-shadow: var(--glass-shadow);
   padding: 1rem;
   overflow: hidden;
+}
+
+.picker-popover.popover-above {
+  top: auto !important;
+  bottom: calc(100% + 6px) !important;
 }
 
 .days-dropdown-popover {

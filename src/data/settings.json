@@ -13,14 +13,18 @@
     "pan": "EVQPS6557F",
     "minKmOneWay": 5,
     "minKmRoundTrip": 5,
-    "minKmOutstation": 100
+    "minKmOutstation": 200,
+    "instagramUrl": "https://www.maayantrans.com/",
+    "facebookUrl": "https://www.maayantrans.com/",
+    "twitterUrl": "https://www.maayantrans.com/",
+    "youtubeUrl": "https://www.maayantrans.com/"
   },
   "vehicles": {
     "hatchback": {
       "ratePerKm": 13,
       "driverAllowancePerDay": 300,
-      "oneWayMinKmPerHour": 20,
-      "oneWayHourRate": 170,
+      "oneWayMinKmPerHour": 10,
+      "oneWayHourRate": 100,
       "roundTripHourRate": 170,
       "outstationHourRate": 170,
       "outstationMinKmPerDay": 250,

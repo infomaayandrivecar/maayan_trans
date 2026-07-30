@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Calendar, Clock, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePickerPlacement } from "../hooks/usePickerPlacement";
 
 interface DateTimePickerProps {
   pickupDate: string; // YYYY-MM-DD
@@ -30,6 +31,9 @@ export default function DateTimePicker({
 
   const datePickerRef = useRef<HTMLDivElement>(null);
   const timePickerRef = useRef<HTMLDivElement>(null);
+
+  const dateOpenUpward = usePickerPlacement(showDatePicker, datePickerRef, 340);
+  const timeOpenUpward = usePickerPlacement(showTimePicker, timePickerRef, 310);
 
   const minValid = minDateTime ? new Date(minDateTime) : new Date(Date.now() + 30 * 60 * 1000);
   const todayDateString = `${minValid.getFullYear()}-${String(minValid.getMonth() + 1).padStart(2, "0")}-${String(minValid.getDate()).padStart(2, "0")}`;
@@ -361,11 +365,15 @@ export default function DateTimePicker({
             {showDatePicker && (
               <motion.div
                 key="datepicker-popover"
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                initial={{ opacity: 0, y: dateOpenUpward ? -10 : 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                exit={{ opacity: 0, y: dateOpenUpward ? -10 : 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="picker-popover date-popover card-lowest"
+                className={`picker-popover date-popover card-lowest ${dateOpenUpward ? "popover-above" : ""}`}
+                style={{
+                  top: dateOpenUpward ? "auto" : "calc(100% + 6px)",
+                  bottom: dateOpenUpward ? "calc(100% + 6px)" : "auto",
+                }}
               >
                 {/* Calendar Header */}
                 <div className="calendar-header">
@@ -452,11 +460,15 @@ export default function DateTimePicker({
           {showTimePicker && (
             <motion.div
               key="timepicker-popover"
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              initial={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="picker-popover time-popover card-lowest"
+              className={`picker-popover time-popover card-lowest ${timeOpenUpward ? "popover-above" : ""}`}
+              style={{
+                top: timeOpenUpward ? "auto" : "calc(100% + 6px)",
+                bottom: timeOpenUpward ? "calc(100% + 6px)" : "auto",
+              }}
             >
               <div className="time-picker-title">Select {timeLabel || "Pickup Time"}</div>
               

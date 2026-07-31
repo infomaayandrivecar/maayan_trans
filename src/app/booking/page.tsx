@@ -309,18 +309,10 @@ export default function BookingWizard() {
                       <div className="vehicle-info-wrap">
                         <h3 className="title-md vehicle-title">{v.name}</h3>
                         <div className="vehicle-price">₹{Math.round(fare).toLocaleString("en-IN")}/-</div>
-                        {state.tripType === "Round Trip" && (
-                          <div className="fare-breakdown-details" style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                            KM Charges: ₹{Math.round(fare - (getRoundTripHours() * (v.roundTripHourRate || 170))).toLocaleString("en-IN")} + Hour Charges: ₹{(getRoundTripHours() * (v.roundTripHourRate || 170)).toLocaleString("en-IN")} ({getRoundTripHours()} hrs)
-                          </div>
-                        )}
-                        {state.tripType === "Outstation Trip" && state.distanceKm !== null && (state.distanceKm * 2 < state.numberOfDays * (v.outstationMinKmPerDay || 250)) && (
-                          <div className="fare-breakdown-details" style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                            Minimum hours fare: ₹{Math.round(state.numberOfDays * (v.outstationHoursPerDay || 16) * (v.outstationHourRate || 170)).toLocaleString("en-IN")} ({state.numberOfDays * (v.outstationHoursPerDay || 16)} hrs min)
-                          </div>
-                        )}
+
+
                         <p className="vehicle-inclusions body-md">
-                          {state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}. {(state.tripType === "One Way" || state.tripType === "Round Trip") ? v.features.replace(/Driver Betta,\s*/i, "") : v.features}
+                          <strong>{state.distanceKm ? `${Number(state.distanceKm * ((state.tripType === "Round Trip" || state.tripType === "Outstation Trip") ? 2 : 1)).toFixed(2)} kms` : "0.00 kms"}</strong>. {(state.tripType === "One Way" || state.tripType === "Round Trip") ? v.features.replace(/Driver Betta,\s*/i, "") : v.features}
                         </p>
 
                         <button
@@ -509,7 +501,6 @@ export default function BookingWizard() {
                       <div className="ledger-row">
                         <span className="ledger-label">
                           {state.tripType === "Round Trip" ? "KM Charges" : "Base Fare"}
-                          {state.tripType === "Outstation Trip" && state.distanceKm !== null && (state.distanceKm * 2 < state.numberOfDays * (state.selectedVehicle.outstationMinKmPerDay || 250)) && " (Min Hours)"}
                         </span>
                         <span className="ledger-value">
                           ₹{Math.round(calculateFare(state.selectedVehicle, false) - (state.tripType === "Round Trip" ? getRoundTripHours() * (state.selectedVehicle.roundTripHourRate || 170) : 0)).toLocaleString("en-IN")}
@@ -525,7 +516,20 @@ export default function BookingWizard() {
                         <div className="ledger-row">
                           <span className="ledger-label">Driver Allowance</span>
                           <span className="ledger-value">
-                            ₹{Math.round(state.selectedVehicle.driverAllowancePerDay * Math.max(1, state.numberOfDays || 1)).toLocaleString("en-IN")}
+                            ₹{(() => {
+                              const days = Math.max(1, state.numberOfDays || 1);
+                              let pickupTimeHours = 0;
+                              if (state.pickupTime) {
+                                const parts = state.pickupTime.split(":");
+                                const h = parseInt(parts[0], 10) || 0;
+                                const m = parseInt(parts[1], 10) || 0;
+                                pickupTimeHours = h + (m / 60);
+                              }
+                              const totalHours = Math.max(1, (days * 24) - pickupTimeHours);
+                              const hrsPerDay = state.selectedVehicle.outstationHoursPerDay || 16;
+                              const betaDays = Math.ceil(totalHours / hrsPerDay);
+                              return Math.round(state.selectedVehicle.driverAllowancePerDay * betaDays).toLocaleString("en-IN");
+                            })()}
                           </span>
                         </div>
                       )}

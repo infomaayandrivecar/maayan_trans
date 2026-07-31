@@ -36,6 +36,7 @@ export default function PlacesAutocomplete({
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cacheRef = useRef<Record<string, Prediction[]>>({});
 
@@ -184,6 +185,10 @@ export default function PlacesAutocomplete({
     setPredictions([]);
     setLocationError(null);
     onSelect(null);
+    setShowDropdown(true);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   };
 
   return (
@@ -191,6 +196,7 @@ export default function PlacesAutocomplete({
       <div className={`input-wrapper ${showDropdown ? "focused" : ""}`}>
         {icon}
         <input
+          ref={inputRef}
           type="text"
           id={id}
           value={query}
@@ -228,27 +234,29 @@ export default function PlacesAutocomplete({
 
       {showDropdown && (
         <div className="predictions-dropdown card-lowest animate-fade-in">
-          {/* Current Location Option */}
-          <button
-            type="button"
-            className="prediction-row current-location-row"
-            onClick={handleUseCurrentLocation}
-            disabled={isLocating}
-          >
-            {isLocating ? (
-              <Loader2 size={16} className="location-pin-icon loader-spinner-inline" />
-            ) : (
-              <Navigation size={16} className="location-pin-icon current-loc-icon" />
-            )}
-            <div className="prediction-details">
-              <span className="main-text current-loc-title">
-                {isLocating ? "Locating position..." : "Use Current Location"}
-              </span>
-              <span className="secondary-text">
-                {isLocating ? "Fetching address via GPS..." : "Detect address automatically"}
-              </span>
-            </div>
-          </button>
+          {/* Current Location Option (Only shown when input is empty) */}
+          {!query.trim() && (
+            <button
+              type="button"
+              className="prediction-row current-location-row"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocating}
+            >
+              {isLocating ? (
+                <Loader2 size={16} className="location-pin-icon loader-spinner-inline" />
+              ) : (
+                <Navigation size={16} className="location-pin-icon current-loc-icon" />
+              )}
+              <div className="prediction-details">
+                <span className="main-text current-loc-title">
+                  {isLocating ? "Locating position..." : "Use Current Location"}
+                </span>
+                <span className="secondary-text">
+                  {isLocating ? "Fetching address via GPS..." : "Detect address automatically"}
+                </span>
+              </div>
+            </button>
+          )}
 
           {locationError && (
             <div className="location-error-banner">
@@ -256,7 +264,7 @@ export default function PlacesAutocomplete({
             </div>
           )}
 
-          {predictions.length > 0 && <div className="dropdown-divider" />}
+          {!query.trim() && predictions.length > 0 && <div className="dropdown-divider" />}
 
           {predictions.map((pred) => (
             <button

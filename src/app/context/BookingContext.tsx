@@ -535,11 +535,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       const actualDistance = state.distanceKm * 2;
       const outstationMinKmPerDay = latestRates.outstationMinKmPerDay !== undefined ? latestRates.outstationMinKmPerDay : 250;
       const minDistanceAllowance = days * outstationMinKmPerDay;
-      const outstationHourRate = latestRates.outstationHourRate !== undefined ? latestRates.outstationHourRate : 170;
-      const outstationHoursPerDay = latestRates.outstationHoursPerDay !== undefined ? latestRates.outstationHoursPerDay : 16;
       if (actualDistance < minDistanceAllowance) {
-        // Charge minimum driver hours fare: Days * outstationHoursPerDay * hourly rate
-        runningFare = days * outstationHoursPerDay * outstationHourRate;
+        // Charge minimum distance allowance fare: minDistanceAllowance * ratePerKm
+        runningFare = minDistanceAllowance * latestRates.ratePerKm;
       } else {
         // Charge based on actual distance
         runningFare = actualDistance * latestRates.ratePerKm;
@@ -550,7 +548,20 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     const isOutstation = state.tripType === "Outstation Trip";
-    const driverFare = isOutstation ? (days * latestRates.driverAllowancePerDay) : 0;
+    let driverFare = 0;
+    if (isOutstation) {
+      const outstationHoursPerDay = latestRates.outstationHoursPerDay !== undefined ? latestRates.outstationHoursPerDay : 16;
+      let pickupTimeHours = 0;
+      if (state.pickupTime) {
+        const parts = state.pickupTime.split(":");
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        pickupTimeHours = h + (m / 60);
+      }
+      const totalHours = Math.max(1, (days * 24) - pickupTimeHours);
+      const betaDays = Math.ceil(totalHours / (outstationHoursPerDay || 16));
+      driverFare = betaDays * latestRates.driverAllowancePerDay;
+    }
     const extraCharges = vehicle.tollPermitCharge;
 
     let total = runningFare + (includeDriverAllowance ? driverFare : 0) + extraCharges;

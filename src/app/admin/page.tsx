@@ -1975,26 +1975,6 @@ export default function AdminPage() {
                                           </div>
                                         </div>
 
-                                        {/* Outstation Hourly Rate */}
-                                        <div className="input-field-container">
-                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Hourly Rate (₹)</label>
-                                          <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
-                                            <IndianRupee size={14} />
-                                            <input
-                                              type="number"
-                                              value={vehicleData.outstationHourRate !== undefined ? vehicleData.outstationHourRate : 170}
-                                              onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
-                                                setSettingsVehicles(prev => ({
-                                                  ...prev,
-                                                  [vehicleKey]: { ...prev[vehicleKey], outstationHourRate: val }
-                                                }));
-                                              }}
-                                              style={{ fontSize: "0.85rem" }}
-                                            />
-                                          </div>
-                                        </div>
-
                                         {/* Outstation Min KM/Day */}
                                         <div className="input-field-container">
                                           <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Min KM/Day</label>
@@ -2014,9 +1994,9 @@ export default function AdminPage() {
                                           </div>
                                         </div>
 
-                                        {/* Outstation Hours Per Day */}
+                                        {/* Outstation Hours Per Day (Beta Calculation) */}
                                         <div className="input-field-container">
-                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Hours Per Day</label>
+                                          <label className="input-label" style={{ fontSize: "0.75rem" }}>Outstation Hours Per Day (Beta Calculation)</label>
                                           <div className="input-wrapper" style={{ padding: "0.4rem 0.6rem" }}>
                                             <input
                                               type="number"

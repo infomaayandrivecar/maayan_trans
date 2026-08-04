@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Clock, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePickerPlacement } from "../hooks/usePickerPlacement";
@@ -20,6 +21,21 @@ export default function TimePicker({
 }: TimePickerProps) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const timePickerRef = useRef<HTMLDivElement>(null);
+  const timePopoverRef = useRef<HTMLDivElement>(null);
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const checkMobile = () => {
+      setIsMobile(typeof window !== "undefined" && window.innerWidth <= 576);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const timeOpenUpward = usePickerPlacement(showTimePicker, timePickerRef, 310);
 
   // Time Picker State (Temporary state until "Confirm" is clicked)
@@ -55,7 +71,6 @@ export default function TimePicker({
     if (showTimePicker) {
       const { h12, min, period } = parse24h(time);
       setTempHour(h12);
-      // Round or keep minutes
       setTempMinute(min);
       setTempPeriod(period);
     }
@@ -64,7 +79,12 @@ export default function TimePicker({
   // Click outside detection to close dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (timePickerRef.current && !timePickerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        timePickerRef.current &&
+        !timePickerRef.current.contains(target) &&
+        (!timePopoverRef.current || !timePopoverRef.current.contains(target))
+      ) {
         setShowTimePicker(false);
       }
     }
@@ -72,26 +92,30 @@ export default function TimePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Lock background scroll when a picker is open (mobile only)
+  // Escape key handler to close picker
   useEffect(() => {
-    const handleScrollLock = () => {
-      const isMobile = typeof window !== "undefined" && window.innerWidth <= 576;
-      if (showTimePicker && isMobile) {
-        document.body.style.overflow = "hidden";
-        document.documentElement.style.overflow = "hidden";
-      } else {
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowTimePicker(false);
       }
-    };
-    handleScrollLock();
-    window.addEventListener("resize", handleScrollLock);
-    return () => {
-      window.removeEventListener("resize", handleScrollLock);
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-    };
-  }, [showTimePicker]);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Lock background scroll when picker is open on mobile
+  useEffect(() => {
+    if (isMobile && showTimePicker) {
+      const origBodyOverflow = document.body.style.overflow;
+      const origHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = origBodyOverflow;
+        document.documentElement.style.overflow = origHtmlOverflow;
+      };
+    }
+  }, [showTimePicker, isMobile]);
 
   const formatDisplayTime = (timeStr: string) => {
     if (!timeStr) return placeholder;
@@ -108,8 +132,140 @@ export default function TimePicker({
     setShowTimePicker(false);
   };
 
+  const renderTimePickerPopover = () => {
+    if (!showTimePicker) return null;
+
+    const content = (
+      <AnimatePresence key="timepicker-presence">
+        {showTimePicker && (
+          <div className={isMobile ? "mobile-picker-modal-overlay" : undefined}>
+            <motion.div
+              key="timepicker-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="picker-backdrop"
+              onClick={() => setShowTimePicker(false)}
+              onTouchMove={(e) => isMobile && e.preventDefault()}
+            />
+            <motion.div
+              key="timepicker-popover"
+              ref={timePopoverRef}
+              initial={
+                isMobile
+                  ? { opacity: 0, scale: 0.92 }
+                  : { opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }
+              }
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={
+                isMobile
+                  ? { opacity: 0, scale: 0.92 }
+                  : { opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }
+              }
+              transition={{ duration: 0.15 }}
+              className={`picker-popover time-popover card-lowest ${!isMobile && timeOpenUpward ? "popover-above" : ""}`}
+              style={
+                isMobile
+                  ? {}
+                  : {
+                      left: 0,
+                      right: "auto",
+                      width: "260px",
+                      top: timeOpenUpward ? "auto" : "calc(100% + 6px)",
+                      bottom: timeOpenUpward ? "calc(100% + 6px)" : "auto",
+                    }
+              }
+              onTouchMove={(e) => isMobile && e.stopPropagation()}
+            >
+              <div className="time-picker-title">Select {label || "Time"}</div>
+              
+              <div className="time-columns-container">
+                {/* Hours Column */}
+                <div className="time-column">
+                  <span className="column-header">Hour</span>
+                  <div className="column-scroll-area">
+                    {hoursOptions.map(h => {
+                      const isSelected = tempHour === h;
+                      return (
+                        <button
+                          key={`hour-${h}`}
+                          type="button"
+                          className={`time-cell ${isSelected ? "selected" : ""}`}
+                          onClick={() => setTempHour(h)}
+                        >
+                          {String(h).padStart(2, "0")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Minutes Column */}
+                <div className="time-column">
+                  <span className="column-header">Min</span>
+                  <div className="column-scroll-area">
+                    {minutesOptions.map(m => {
+                      const isSelected = tempMinute === m;
+                      return (
+                        <button
+                          key={`min-${m}`}
+                          type="button"
+                          className={`time-cell ${isSelected ? "selected" : ""}`}
+                          onClick={() => setTempMinute(m)}
+                        >
+                          {String(m).padStart(2, "0")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* AM/PM Column */}
+                <div className="time-column">
+                  <span className="column-header">Period</span>
+                  <div className="column-scroll-area">
+                    {periodOptions.map(p => {
+                      const isSelected = tempPeriod === p;
+                      return (
+                        <button
+                          key={`period-${p}`}
+                          type="button"
+                          className={`time-cell ${isSelected ? "selected" : ""}`}
+                          onClick={() => setTempPeriod(p)}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Confirm Actions */}
+              <div className="time-picker-actions">
+                <button
+                  type="button"
+                  className="btn-confirm-time"
+                  onClick={handleConfirmTime}
+                >
+                  <Check size={14} />
+                  <span>Set Time</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+
+    if (isMobile && isMounted) {
+      return createPortal(content, document.body);
+    }
+    return content;
+  };
+
   return (
-    <div className="picker-wrapper" ref={timePickerRef} style={{ zIndex: showTimePicker ? 500 : undefined }}>
+    <div className="picker-wrapper" ref={timePickerRef} style={{ zIndex: showTimePicker && !isMobile ? 500 : undefined }}>
       {label && (
         <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>
           {label}
@@ -125,111 +281,7 @@ export default function TimePicker({
         </div>
       </div>
 
-      <AnimatePresence>
-        {showTimePicker && (
-          <motion.div
-            key="timepicker-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="picker-backdrop"
-            onClick={() => setShowTimePicker(false)}
-          />
-        )}
-        {showTimePicker && (
-          <motion.div
-            key="timepicker-popover"
-            initial={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: timeOpenUpward ? -10 : 10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className={`picker-popover card-lowest ${timeOpenUpward ? "popover-above" : ""}`}
-            style={{
-              left: 0,
-              right: "auto",
-              width: "260px",
-              top: timeOpenUpward ? "auto" : "calc(100% + 6px)",
-              bottom: timeOpenUpward ? "calc(100% + 6px)" : "auto",
-            }}
-          >
-            <div className="time-picker-title">Select {label || "Time"}</div>
-            
-            <div className="time-columns-container">
-              {/* Hours Column */}
-              <div className="time-column">
-                <span className="column-header">Hour</span>
-                <div className="column-scroll-area">
-                  {hoursOptions.map(h => {
-                    const isSelected = tempHour === h;
-                    return (
-                      <button
-                        key={`hour-${h}`}
-                        type="button"
-                        className={`time-cell ${isSelected ? "selected" : ""}`}
-                        onClick={() => setTempHour(h)}
-                      >
-                        {String(h).padStart(2, "0")}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Minutes Column */}
-              <div className="time-column">
-                <span className="column-header">Min</span>
-                <div className="column-scroll-area">
-                  {minutesOptions.map(m => {
-                    const isSelected = tempMinute === m;
-                    return (
-                      <button
-                        key={`min-${m}`}
-                        type="button"
-                        className={`time-cell ${isSelected ? "selected" : ""}`}
-                        onClick={() => setTempMinute(m)}
-                      >
-                        {String(m).padStart(2, "0")}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* AM/PM Column */}
-              <div className="time-column">
-                <span className="column-header">Period</span>
-                <div className="column-scroll-area">
-                  {periodOptions.map(p => {
-                    const isSelected = tempPeriod === p;
-                    return (
-                      <button
-                        key={`period-${p}`}
-                        type="button"
-                        className={`time-cell ${isSelected ? "selected" : ""}`}
-                        onClick={() => setTempPeriod(p)}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Confirm Actions */}
-            <div className="time-picker-actions">
-              <button
-                type="button"
-                className="btn-confirm-time"
-                onClick={handleConfirmTime}
-              >
-                <Check size={14} />
-                <span>Set Time</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {renderTimePickerPopover()}
     </div>
   );
 }

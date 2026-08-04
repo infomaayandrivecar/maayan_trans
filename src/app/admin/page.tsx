@@ -1084,7 +1084,6 @@ export default function AdminPage() {
 
       {/* LOCAL STYLES FOR PRINTING TRIP SHEET */}
       <style jsx global>{`
-        /* Watermark and position context for print container */
         .print-container {
           position: relative;
           overflow: hidden;
@@ -1092,19 +1091,21 @@ export default function AdminPage() {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        .print-container::before {
-          content: "MAAYAN TRANS";
+        .trip-sheet-watermark {
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%) rotate(-45deg);
-          font-size: 100px;
+          font-size: 80px;
           font-weight: 800;
-          color: rgba(0, 0, 0, 0.08);
+          color: #000000 !important;
+          opacity: 0.10 !important;
           white-space: nowrap;
           z-index: 10;
           pointer-events: none;
           font-family: var(--font-display);
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
         
         .print-container table td {
@@ -1178,6 +1179,22 @@ export default function AdminPage() {
             overflow: visible !important;
             padding: 0 !important;
           }
+          .trip-sheet-watermark {
+            display: block !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) rotate(-45deg) !important;
+            font-size: 75px !important;
+            font-weight: 800 !important;
+            color: #000000 !important;
+            opacity: 0.12 !important;
+            white-space: nowrap !important;
+            z-index: 10 !important;
+            pointer-events: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
         @media (max-width: 768px) {
           .print-container {
@@ -1191,7 +1208,8 @@ export default function AdminPage() {
             padding: 4px 6px !important;
           }
           .booking-id-cell {
-            word-break: break-all !important;
+            white-space: nowrap !important;
+            word-break: normal !important;
           }
         }
         @media (max-width: 600px) {
@@ -2971,6 +2989,8 @@ export default function AdminPage() {
                           margin: "0 auto",
                           fontFamily: "var(--font-body)"
                         }}>
+                          {/* Watermark for screen, PDF, and hard-copy prints */}
+                          <div className="trip-sheet-watermark" aria-hidden="true">MAAYAN TRANS</div>
 
                           {/* Header logo, details, and DS Serial */}
                           <div className="preview-header-container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", borderBottom: "2px solid #ffb300", paddingBottom: "15px" }}>
@@ -3007,8 +3027,8 @@ export default function AdminPage() {
                               <tr>
                                 <td style={{ border: "1px solid #000", padding: "0 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>ORGANISATION</td>
                                 <td className={!tripSheetData.organisation ? "placeholder-text" : ""} style={{ border: "1px solid #000", padding: "0 12px", width: "30%", fontWeight: tripSheetData.organisation ? "bold" : "normal", fontSize: "11px" }}>{tripSheetData.organisation || "To be filled"}</td>
-                                <td style={{ border: "1px solid #000", padding: "0 12px", width: "20%", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>BOOKING NO</td>
-                                <td className="booking-id-cell" style={{ border: "1px solid #000", padding: "0 12px", width: "30%", fontWeight: "bold" }}>{tripSheetData.booking_id}</td>
+                                <td style={{ border: "1px solid #000", padding: "0 8px", width: "18%", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase", whiteSpace: "nowrap" }}>BOOKING NO</td>
+                                <td className="booking-id-cell" style={{ border: "1px solid #000", padding: "0 8px", width: "32%", fontWeight: "bold", whiteSpace: "nowrap" }}>{tripSheetData.booking_id}</td>
                               </tr>
                               <tr>
                                 <td style={{ border: "1px solid #000", padding: "0 12px", background: "#fcfcfc", fontWeight: "bold", color: "#333", fontSize: "9px", textTransform: "uppercase" }}>CUSTOMER</td>

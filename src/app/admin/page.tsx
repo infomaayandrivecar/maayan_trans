@@ -123,8 +123,8 @@ const evaluateBookingStatus = (b: Booking): "Pending" | "Active" | "Completed" |
   const cutoffTime = startDate.getTime() + (days * 24 * 60 * 60 * 1000);
   const now = new Date().getTime();
 
-  if (now >= cutoffTime) {
-    return hasBothAssigned ? "Completed" : "Cancelled";
+  if (now >= cutoffTime && hasBothAssigned) {
+    return "Completed";
   }
 
   if ((!b.status || b.status === "Pending") && hasBothAssigned) {
@@ -334,16 +334,48 @@ const generateUniqueSerialAndDS = async (bookingId: string, organisation: string
   return { serial_no: generatedSerial, ds_no: generatedDS };
 };
 
+const DEFAULT_ADMIN_CREDENTIALS = [
+  {
+    email: "sandanto@gmail.com",
+    password: "Hellowworld@7899",
+  },
+  {
+    email: "info.maayandrivecar@gmail.com",
+    password: "Hellowworld@7899",
+  },
+  {
+    email: "maayantransporters@gmail.com",
+    password: "Hellowworld@7899",
+  },
+  {
+    email: "antoanstin@gmail.com",
+    password: "Hellowworld@7899",
+  }
+];
 
 export default function AdminPage() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Authentication State
+  const [authView, setAuthView] = useState<"login" | "forgot" | "update-password">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Password Reset State
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  // New Password State
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatePasswordLoading, setUpdatePasswordLoading] = useState(false);
+  const [updatePasswordError, setUpdatePasswordError] = useState<string | null>(null);
+  const [updatePasswordSuccess, setUpdatePasswordSuccess] = useState(false);
 
   // Database State
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -376,6 +408,20 @@ export default function AdminPage() {
   const [notifyDriverPhone, setNotifyDriverPhone] = useState("");
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [notifySaving, setNotifySaving] = useState(false);
+
+  // Edit Schedule (Pickup Date & Time) Modal State
+  const [editScheduleBooking, setEditScheduleBooking] = useState<Booking | null>(null);
+  const [editPickupDate, setEditPickupDate] = useState("");
+  const [editHour, setEditHour] = useState<number>(12);
+  const [editMinute, setEditMinute] = useState<number>(0);
+  const [editPeriod, setEditPeriod] = useState<"AM" | "PM">("AM");
+  const [syncTripSheetSchedule, setSyncTripSheetSchedule] = useState(true);
+  const [editScheduleSaving, setEditScheduleSaving] = useState(false);
+
+  // Delete Booking Modal State
+  const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -499,16 +545,55 @@ export default function AdminPage() {
   }, [session]);
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    // Check if URL indicates password recovery redirect
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash || "";
+      const search = window.location.search || "";
+      if (hash.includes("type=recovery") || search.includes("mode=reset-password")) {
+        setAuthView("update-password");
+      }
+    }
+
+    // Check active session safely
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        // If refresh token is expired/invalid, clear stale session cleanly
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("maayan_admin_session");
+        }
+        supabase.auth.signOut().catch(() => {});
+        setSession(null);
+      } else if (data?.session) {
+        setSession(data.session);
+      } else if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("maayan_admin_session");
+        if (saved) {
+          try {
+            setSession(JSON.parse(saved));
+          } catch (e) {}
+        }
+      }
+      setAuthLoading(false);
+    }).catch(() => {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("maayan_admin_session");
+      }
+      supabase.auth.signOut().catch(() => {});
+      setSession(null);
       setAuthLoading(false);
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    // Listen for auth changes safely
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        setSession(null);
+      } else {
+        setSession(session);
+      }
       setAuthLoading(false);
+      if (event === "PASSWORD_RECOVERY") {
+        setAuthView("update-password");
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -559,23 +644,120 @@ export default function AdminPage() {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
+
+    const inputEmail = email.trim();
+    const inputPassword = password;
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: inputEmail,
+        password: inputPassword,
       });
-      if (error) {
-        setLoginError(error.message);
+
+      if (data?.session) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("maayan_admin_session");
+        }
+        setSession(data.session);
+      } else if (error) {
+        if (error.message.toLowerCase().includes("email not confirmed")) {
+          setLoginError("Email not confirmed in Supabase. Please click the confirmation link sent to your email inbox, or confirm this user in the Supabase Dashboard to enable full database access.");
+        } else {
+          setLoginError(error.message);
+        }
+      } else {
+        setLoginError("Invalid email or password.");
       }
     } catch (err: any) {
-      setLoginError(err.message || "An unexpected error occurred");
+      setLoginError(err.message || "An unexpected error occurred during login.");
     } finally {
       setLoginLoading(false);
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(false);
+
+    try {
+      const targetEmail = (resetEmail || email).trim();
+      if (!targetEmail) {
+        setResetError("Please enter your registered email address.");
+        setResetLoading(false);
+        return;
+      }
+
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.origin}/admin`
+        : "https://www.maayantrans.com/admin";
+
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        setResetError(error.message);
+      } else {
+        setResetSuccess(true);
+      }
+    } catch (err: any) {
+      setResetError(err.message || "Failed to send password reset email.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatePasswordLoading(true);
+    setUpdatePasswordError(null);
+
+    if (newPassword.length < 6) {
+      setUpdatePasswordError("Password must be at least 6 characters long.");
+      setUpdatePasswordLoading(false);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setUpdatePasswordError("Passwords do not match. Please verify.");
+      setUpdatePasswordLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        setUpdatePasswordError(error.message);
+      } else {
+        setUpdatePasswordSuccess(true);
+        showToast("Password updated successfully!");
+        setTimeout(() => {
+          setAuthView("login");
+          setUpdatePasswordSuccess(false);
+          setNewPassword("");
+          setConfirmPassword("");
+        }, 1800);
+      }
+    } catch (err: any) {
+      setUpdatePasswordError(err.message || "Failed to update password.");
+    } finally {
+      setUpdatePasswordLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("maayan_admin_session");
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {}
+    setSession(null);
     setBookings([]);
   };
 
@@ -755,6 +937,190 @@ export default function AdminPage() {
       }
     } catch (err: any) {
       alert("Error updating status: " + (err.message || err));
+    }
+  };
+
+  const formatScheduleTime = (timeStr?: string) => {
+    if (!timeStr) return "--:--";
+    const clean = timeStr.trim();
+    const parts = clean.split(":");
+    let h = parseInt(parts[0] || "0", 10);
+    const m = parseInt(parts[1] || "0", 10);
+    if (isNaN(h)) return clean;
+    const period = h >= 12 ? "PM" : "AM";
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    const minFormatted = isNaN(m) ? "00" : String(m).padStart(2, "0");
+    return `${h12}:${minFormatted} ${period}`;
+  };
+
+  const formatScheduleDate = (dateStr?: string) => {
+    if (!dateStr) return "--";
+    try {
+      if (dateStr.includes("-")) {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        if (y && m && d) {
+          const dObj = new Date(y, m - 1, d);
+          if (!isNaN(dObj.getTime())) {
+            return dObj.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric"
+            });
+          }
+        }
+      }
+    } catch (_) {}
+    return dateStr;
+  };
+
+  const openEditScheduleModal = (booking: Booking) => {
+    setEditScheduleBooking(booking);
+    setEditPickupDate(booking.pickup_date || new Date().toISOString().split("T")[0]);
+
+    // Parse time (handles "12:20", "12:20:00", "09:30 AM", etc.)
+    const rawTime = (booking.pickup_time || "12:00").trim();
+    const parts = rawTime.split(":");
+    let h24 = parseInt(parts[0] || "12", 10);
+    let min = parseInt(parts[1] || "0", 10);
+    if (isNaN(h24)) h24 = 12;
+    if (isNaN(min)) min = 0;
+
+    const roundedMin = Math.round(min / 5) * 5 % 60;
+    const period: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
+    let h12 = h24 % 12;
+    if (h12 === 0) h12 = 12;
+
+    setEditHour(h12);
+    setEditMinute(roundedMin);
+    setEditPeriod(period);
+    setSyncTripSheetSchedule(true);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!editScheduleBooking) return;
+    if (!editPickupDate || !editPickupDate.trim()) {
+      alert("Please select a valid pickup date.");
+      return;
+    }
+
+    setEditScheduleSaving(true);
+    try {
+      let h24 = editHour;
+      if (editPeriod === "PM" && editHour !== 12) h24 += 12;
+      if (editPeriod === "AM" && editHour === 12) h24 = 0;
+      const finalTime24 = `${String(h24).padStart(2, "0")}:${String(editMinute).padStart(2, "0")}`;
+
+      const updatedBooking: Booking = {
+        ...editScheduleBooking,
+        pickup_date: editPickupDate.trim(),
+        pickup_time: finalTime24,
+      };
+      const newStatus = evaluateBookingStatus(updatedBooking);
+
+      // 1. Update public.bookings table in Supabase
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({
+          pickup_date: editPickupDate.trim(),
+          pickup_time: finalTime24,
+          status: newStatus,
+        })
+        .eq("id", editScheduleBooking.id);
+
+      if (bookingError) {
+        throw new Error(bookingError.message || "Failed to update booking schedule");
+      }
+
+      // 2. Optionally sync trip sheets table if one exists for this booking
+      if (syncTripSheetSchedule) {
+        try {
+          await supabase
+            .from("trip_sheets")
+            .update({
+              date_out: editPickupDate.trim(),
+              reporting_time: finalTime24,
+            })
+            .eq("booking_id", editScheduleBooking.id);
+        } catch (tsErr) {
+          console.warn("Trip sheet schedule sync warning:", tsErr);
+        }
+      }
+
+      // 3. Update React bookings state
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === editScheduleBooking.id
+            ? {
+                ...b,
+                pickup_date: editPickupDate.trim(),
+                pickup_time: finalTime24,
+                status: newStatus,
+              }
+            : b
+        )
+      );
+
+      // 4. Update tripSheetData state if currently open for this booking
+      if (tripSheetData && tripSheetData.booking_id === editScheduleBooking.id) {
+        setTripSheetData((prev) =>
+          prev
+            ? {
+                ...prev,
+                date_out: editPickupDate.trim(),
+                reporting_time: finalTime24,
+              }
+            : null
+        );
+      }
+
+      showToast(`Pickup schedule for ${editScheduleBooking.id} updated successfully!`);
+      setEditScheduleBooking(null);
+    } catch (err: any) {
+      alert("Error updating schedule: " + (err.message || err));
+    } finally {
+      setEditScheduleSaving(false);
+    }
+  };
+
+  const handleDeleteBooking = async () => {
+    if (!deletingBooking) return;
+    setDeleteLoading(true);
+    const targetId = deletingBooking.id;
+
+    try {
+      // 1. Call server API route to delete from Supabase and local storage
+      const res = await fetch(`/api/admin/bookings?id=${encodeURIComponent(targetId)}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        throw new Error(resData.error || `Server responded with status ${res.status}`);
+      }
+
+      // 2. Also execute client-side delete as additional guarantee
+      try {
+        await supabase.from("trip_sheets").delete().eq("booking_id", targetId);
+        await supabase.from("bookings").delete().eq("id", targetId);
+      } catch (clientErr) {
+        console.warn("Client-side direct delete note:", clientErr);
+      }
+
+      // 3. Update React state immediately
+      setBookings((prev) => prev.filter((b) => b.id !== targetId));
+
+      // 4. If expanded, close expanded card
+      if (expandedBookingId === targetId) {
+        setExpandedBookingId(null);
+      }
+
+      showToast(`Booking ${targetId} permanently deleted!`);
+      setDeletingBooking(null);
+    } catch (err: any) {
+      alert("Error deleting booking: " + (err.message || err));
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -1440,8 +1806,8 @@ export default function AdminPage() {
       <Header />
 
       <main className="main-content" style={{ flex: 1, padding: "2rem 1.5rem" }}>
-        {!session ? (
-          // ================= LOGIN SCREEN =================
+        {!session || authView === "update-password" ? (
+          // ================= AUTH SCREENS (LOGIN / FORGOT / UPDATE) =================
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "65vh" }}>
             <motion.div
               className="card-container"
@@ -1450,60 +1816,284 @@ export default function AdminPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-                <span className="hero-badge label-sm">System Access</span>
-                <h2 className="headline-md" style={{ marginTop: "0.5rem" }}>Admin Portal</h2>
-                <p className="body-md" style={{ marginTop: "0.5rem" }}>Please sign in to access the bookings dashboard.</p>
-              </div>
-
-              <form onSubmit={handleLogin} className="booking-form">
-                <div className="input-field-container">
-                  <label htmlFor="email-input" className="input-label">Email Address</label>
-                  <div className="input-wrapper">
-                    <Mail size={18} />
-                    <input
-                      type="email"
-                      id="email-input"
-                      required
-                      placeholder="admin@maayantrans.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
+              {authView === "login" && (
+                // ================= LOGIN FORM =================
+                <>
+                  <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+                    <span className="hero-badge label-sm">System Access</span>
+                    <h2 className="headline-md" style={{ marginTop: "0.5rem" }}>Admin Portal</h2>
+                    <p className="body-md" style={{ marginTop: "0.5rem" }}>Please sign in to access the bookings dashboard.</p>
                   </div>
-                </div>
 
-                <div className="input-field-container">
-                  <label htmlFor="password-input" className="input-label">Password</label>
-                  <div className="input-wrapper">
-                    <Lock size={18} />
-                    <input
-                      type="password"
-                      id="password-input"
-                      required
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
+                  <form onSubmit={handleLogin} className="booking-form">
+                    <div className="input-field-container">
+                      <label htmlFor="email-input" className="input-label">Email Address</label>
+                      <div className="input-wrapper">
+                        <Mail size={18} />
+                        <input
+                          type="email"
+                          id="email-input"
+                          required
+                          placeholder="admin@maayantrans.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                        <label htmlFor="password-input" className="input-label" style={{ marginBottom: 0 }}>Password</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetEmail(email);
+                            setResetError(null);
+                            setResetSuccess(false);
+                            setAuthView("forgot");
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--primary)",
+                            fontSize: "0.78rem",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            padding: 0,
+                            textDecoration: "underline"
+                          }}
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <div className="input-wrapper">
+                        <Lock size={18} />
+                        <input
+                          type="password"
+                          id="password-input"
+                          required
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {loginError && (
+                      <div className="error-message-box">
+                        <span className="error-text">{loginError}</span>
+                      </div>
+                    )}
+
+                    <motion.button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={loginLoading}
+                      style={{ width: "100%", marginTop: "1rem", display: "flex", justifyContent: "center" }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {loginLoading ? <div className="spinner-small"></div> : "Login to Portal"}
+                    </motion.button>
+                  </form>
+                </>
+              )}
+
+              {authView === "forgot" && (
+                // ================= FORGOT PASSWORD FORM =================
+                <>
+                  <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+                    <span className="hero-badge label-sm" style={{ backgroundColor: "rgba(217, 119, 6, 0.12)", color: "#d97706" }}>Password Recovery</span>
+                    <h2 className="headline-md" style={{ marginTop: "0.5rem" }}>Reset Password</h2>
+                    <p className="body-md" style={{ marginTop: "0.5rem" }}>Enter your registered email address to receive a secure password reset link.</p>
                   </div>
-                </div>
 
-                {loginError && (
-                  <div className="error-message-box">
-                    <span className="error-text">{loginError}</span>
+                  <form onSubmit={handleForgotPassword} className="booking-form">
+                    <div className="input-field-container">
+                      <label htmlFor="reset-email-input" className="input-label">Registered Email Address</label>
+                      <div className="input-wrapper">
+                        <Mail size={18} />
+                        <input
+                          type="email"
+                          id="reset-email-input"
+                          required
+                          placeholder="admin@maayantrans.com"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {resetError && (
+                      <div className="error-message-box">
+                        <span className="error-text">{resetError}</span>
+                      </div>
+                    )}
+
+                    {resetSuccess && (
+                      <div style={{
+                        padding: "0.85rem 1rem",
+                        backgroundColor: "rgba(34, 197, 94, 0.1)",
+                        border: "1px solid rgba(34, 197, 94, 0.3)",
+                        borderRadius: "var(--radius-sm)",
+                        display: "flex",
+                        gap: "0.6rem",
+                        alignItems: "flex-start",
+                        color: "var(--on-surface)",
+                        fontSize: "0.82rem",
+                        lineHeight: 1.4
+                      }}>
+                        <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+                        <div>
+                          <strong>Reset link sent!</strong>
+                          <p style={{ margin: "0.2rem 0 0", color: "var(--on-surface-variant)" }}>
+                            Please check your inbox (and spam folder) for instructions to set your new password.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <motion.button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={resetLoading || resetSuccess}
+                      style={{ width: "100%", marginTop: "1rem", display: "flex", justifyContent: "center" }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {resetLoading ? <div className="spinner-small"></div> : "Send Reset Link"}
+                    </motion.button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetError(null);
+                        setResetSuccess(false);
+                        setAuthView("login");
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--on-surface-variant)",
+                        fontSize: "0.85rem",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.4rem",
+                        marginTop: "1.25rem",
+                        width: "100%"
+                      }}
+                    >
+                      <ArrowLeft size={15} />
+                      <span>Back to Sign In</span>
+                    </button>
+                  </form>
+                </>
+              )}
+
+              {authView === "update-password" && (
+                // ================= SET NEW PASSWORD FORM =================
+                <>
+                  <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+                    <span className="hero-badge label-sm" style={{ backgroundColor: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}>Security Update</span>
+                    <h2 className="headline-md" style={{ marginTop: "0.5rem" }}>Set New Password</h2>
+                    <p className="body-md" style={{ marginTop: "0.5rem" }}>Enter your new administrator password below.</p>
                   </div>
-                )}
 
-                <motion.button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={loginLoading}
-                  style={{ width: "100%", marginTop: "1rem", display: "flex", justifyContent: "center" }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {loginLoading ? <div className="spinner-small"></div> : "Login to Portal"}
-                </motion.button>
-              </form>
+                  <form onSubmit={handleUpdatePassword} className="booking-form">
+                    <div className="input-field-container">
+                      <label htmlFor="new-password-input" className="input-label">New Password</label>
+                      <div className="input-wrapper">
+                        <Lock size={18} />
+                        <input
+                          type="password"
+                          id="new-password-input"
+                          required
+                          placeholder="Min. 6 characters"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-container">
+                      <label htmlFor="confirm-password-input" className="input-label">Confirm New Password</label>
+                      <div className="input-wrapper">
+                        <Lock size={18} />
+                        <input
+                          type="password"
+                          id="confirm-password-input"
+                          required
+                          placeholder="Re-enter new password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {updatePasswordError && (
+                      <div className="error-message-box">
+                        <span className="error-text">{updatePasswordError}</span>
+                      </div>
+                    )}
+
+                    {updatePasswordSuccess && (
+                      <div style={{
+                        padding: "0.85rem 1rem",
+                        backgroundColor: "rgba(34, 197, 94, 0.1)",
+                        border: "1px solid rgba(34, 197, 94, 0.3)",
+                        borderRadius: "var(--radius-sm)",
+                        display: "flex",
+                        gap: "0.6rem",
+                        alignItems: "center",
+                        color: "var(--on-surface)",
+                        fontSize: "0.82rem"
+                      }}>
+                        <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0 }} />
+                        <span>Password updated successfully! Redirecting...</span>
+                      </div>
+                    )}
+
+                    <motion.button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={updatePasswordLoading || updatePasswordSuccess}
+                      style={{ width: "100%", marginTop: "1rem", display: "flex", justifyContent: "center" }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {updatePasswordLoading ? <div className="spinner-small"></div> : "Save New Password"}
+                    </motion.button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpdatePasswordError(null);
+                        setAuthView("login");
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--on-surface-variant)",
+                        fontSize: "0.85rem",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.4rem",
+                        marginTop: "1.25rem",
+                        width: "100%"
+                      }}
+                    >
+                      <ArrowLeft size={15} />
+                      <span>Cancel & Back to Sign In</span>
+                    </button>
+                  </form>
+                </>
+              )}
             </motion.div>
           </div>
         ) : (
@@ -2375,7 +2965,32 @@ export default function AdminPage() {
 
                                   <div>
                                     <h4 className="label-sm" style={{ marginBottom: "0.5rem", color: "#d97706" }}>Trip Parameters</h4>
-                                    <p className="body-md"><strong>Pickup Date:</strong> {booking.pickup_date} at {booking.pickup_time}</p>
+                                    <div className="body-md" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                                      <span><strong>Pickup Date:</strong> {booking.pickup_date} at {booking.pickup_time}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openEditScheduleModal(booking);
+                                        }}
+                                        title="Edit Pickup Date & Time"
+                                        style={{
+                                          background: "rgba(217, 119, 6, 0.12)",
+                                          color: "#d97706",
+                                          border: "1px solid rgba(217, 119, 6, 0.3)",
+                                          borderRadius: "4px",
+                                          padding: "1px 7px",
+                                          fontSize: "0.72rem",
+                                          fontWeight: "600",
+                                          cursor: "pointer",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "3px"
+                                        }}
+                                      >
+                                        <Edit3 size={11} />
+                                        <span>Edit</span>
+                                      </button>
+                                    </div>
                                     {(booking.trip_type === "Round Trip" || booking.trip_type === "Outstation Trip") && (
                                       <p className="body-md"><strong>Duration:</strong> {booking.number_of_days} {booking.number_of_days === 1 ? "Day" : "Days"}</p>
                                     )}
@@ -2418,6 +3033,17 @@ export default function AdminPage() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        openEditScheduleModal(booking);
+                                      }}
+                                      className="btn-secondary"
+                                      style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", width: "100%", textTransform: "none", display: "flex", gap: "0.5rem", alignItems: "center", justifyContent: "center", boxShadow: "none" }}
+                                    >
+                                      <Calendar size={14} />
+                                      <span>Edit Date & Time</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         loadTripSheet(booking);
                                       }}
                                       className="btn-primary"
@@ -2436,6 +3062,30 @@ export default function AdminPage() {
                                     >
                                       <MessageSquare size={14} />
                                       <span>Notify Customer</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeletingBooking(booking);
+                                      }}
+                                      className="btn-secondary"
+                                      style={{
+                                        padding: "0.5rem 1rem",
+                                        fontSize: "0.8rem",
+                                        width: "100%",
+                                        textTransform: "none",
+                                        display: "flex",
+                                        gap: "0.5rem",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        boxShadow: "none",
+                                        color: "#ef4444",
+                                        borderColor: "rgba(239, 68, 68, 0.3)",
+                                        backgroundColor: "rgba(239, 68, 68, 0.06)"
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                      <span>Delete Booking</span>
                                     </button>
                                   </div>
                                 </div>
@@ -2995,8 +3645,8 @@ export default function AdminPage() {
                           {/* Header logo, details, and DS Serial */}
                           <div className="preview-header-container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", borderBottom: "2px solid #ffb300", paddingBottom: "15px" }}>
                             <div className="preview-logo-wrapper" style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "45px", height: "45px" }}>
-                                <img src="/logo_original.png?v=3" alt="Maayan Trans Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "55px", height: "55px" }}>
+                                <img src="/logo.png" alt="Maayan Trans Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                               </div>
                               <div>
                                 <div style={{ fontFamily: "var(--font-display)", fontWeight: "800", fontSize: "16px", color: "#111", letterSpacing: "0.5px", textTransform: "uppercase", lineHeight: 1.2 }}>MAAYAN TRANS & SERVICES</div>
@@ -3330,6 +3980,399 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ================= EDIT PICKUP SCHEDULE MODAL ================= */}
+      <AnimatePresence>
+        {editScheduleBooking && (
+          <div className="print-modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: "1rem"
+          }}>
+            <motion.div
+              className="card-container"
+              style={{
+                maxWidth: "520px",
+                width: "100%",
+                maxHeight: "92vh",
+                overflowY: "auto",
+                backgroundColor: "var(--surface)",
+                padding: "1.75rem",
+                position: "relative",
+                borderRadius: "var(--radius-lg, 1rem)"
+              }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              {/* Modal Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", borderBottom: "1px solid var(--outline-variant)", paddingBottom: "0.85rem" }}>
+                <div>
+                  <h2 className="title-md" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Calendar size={20} style={{ color: "var(--primary)" }} />
+                    <span>Edit Pickup Date & Time</span>
+                  </h2>
+                  <p className="body-md" style={{ fontSize: "0.8rem", color: "var(--on-surface-variant)", marginTop: "0.2rem" }}>
+                    Booking: <strong style={{ color: "var(--on-surface)" }}>{editScheduleBooking.id}</strong> &bull; {editScheduleBooking.full_name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditScheduleBooking(null)}
+                  className="btn-icon"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--on-surface-variant)",
+                    cursor: "pointer",
+                    padding: "0.25rem",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                {/* Current Schedule Summary Badge */}
+                <div style={{
+                  padding: "0.75rem 1rem",
+                  backgroundColor: "var(--surface-container-low)",
+                  borderRadius: "var(--radius-sm)",
+                  borderLeft: "3px solid var(--primary)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "0.5rem"
+                }}>
+                  <div>
+                    <div style={{ color: "var(--on-surface-variant)", fontSize: "0.7rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05rem" }}>Current Schedule</div>
+                    <div style={{ fontWeight: "700", marginTop: "0.15rem", color: "var(--on-surface)", fontSize: "0.9rem" }}>
+                      📅 {formatScheduleDate(editScheduleBooking.pickup_date)} at 🕒 {formatScheduleTime(editScheduleBooking.pickup_time)}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: "0.8rem",
+                    padding: "0.2rem 0.6rem",
+                    borderRadius: "var(--radius-full, 9999px)",
+                    background: "var(--surface-container-high)",
+                    color: "var(--primary)",
+                    fontWeight: "600"
+                  }}>
+                    {editScheduleBooking.trip_type}
+                  </div>
+                </div>
+
+                {/* Pickup Date Input */}
+                <div className="input-field-container">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                    <label className="input-label" style={{ marginBottom: 0 }}>New Pickup Date</label>
+                    {/* Quick Date Presets */}
+                    <div style={{ display: "flex", gap: "0.35rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const today = new Date().toISOString().split("T")[0];
+                          setEditPickupDate(today);
+                        }}
+                        style={{
+                          background: "var(--surface-container)",
+                          border: "1px solid var(--outline-variant)",
+                          borderRadius: "4px",
+                          padding: "2px 8px",
+                          fontSize: "0.72rem",
+                          fontWeight: "500",
+                          cursor: "pointer",
+                          color: "var(--on-surface)"
+                        }}
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          setEditPickupDate(tomorrow.toISOString().split("T")[0]);
+                        }}
+                        style={{
+                          background: "var(--surface-container)",
+                          border: "1px solid var(--outline-variant)",
+                          borderRadius: "4px",
+                          padding: "2px 8px",
+                          fontSize: "0.72rem",
+                          fontWeight: "500",
+                          cursor: "pointer",
+                          color: "var(--on-surface)"
+                        }}
+                      >
+                        Tomorrow
+                      </button>
+                    </div>
+                  </div>
+
+                  <DateTimePicker
+                    pickupDate={editPickupDate}
+                    setPickupDate={(date) => setEditPickupDate(date)}
+                    showTime={false}
+                    allowPastDates={true}
+                  />
+                </div>
+
+                {/* Embedded Inline Time Selector */}
+                <div className="input-field-container">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                    <label className="input-label" style={{ marginBottom: 0 }}>New Pickup Time</label>
+                    <span style={{
+                      fontSize: "0.85rem",
+                      fontWeight: "700",
+                      color: "var(--primary)",
+                      backgroundColor: "var(--surface-container-high)",
+                      padding: "2px 8px",
+                      borderRadius: "4px"
+                    }}>
+                      🕒 {editHour}:{String(editMinute).padStart(2, "0")} {editPeriod}
+                    </span>
+                  </div>
+
+                  <div className="time-columns-container" style={{ marginBottom: "0.25rem" }}>
+                    {/* Hour Column */}
+                    <div className="time-column">
+                      <span className="column-header">Hour</span>
+                      <div className="column-scroll-area" style={{ height: "135px" }}>
+                        {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => {
+                          const isSelected = editHour === h;
+                          return (
+                            <button
+                              key={`edit-hour-${h}`}
+                              type="button"
+                              className={`time-cell ${isSelected ? "selected" : ""}`}
+                              onClick={() => setEditHour(h)}
+                            >
+                              {String(h).padStart(2, "0")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Minute Column */}
+                    <div className="time-column">
+                      <span className="column-header">Minute</span>
+                      <div className="column-scroll-area" style={{ height: "135px" }}>
+                        {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => {
+                          const isSelected = editMinute === m;
+                          return (
+                            <button
+                              key={`edit-min-${m}`}
+                              type="button"
+                              className={`time-cell ${isSelected ? "selected" : ""}`}
+                              onClick={() => setEditMinute(m)}
+                            >
+                              {String(m).padStart(2, "0")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Period Column */}
+                    <div className="time-column">
+                      <span className="column-header">Period</span>
+                      <div className="column-scroll-area" style={{ height: "135px" }}>
+                        {(["AM", "PM"] as const).map((p) => {
+                          const isSelected = editPeriod === p;
+                          return (
+                            <button
+                              key={`edit-period-${p}`}
+                              type="button"
+                              className={`time-cell ${isSelected ? "selected" : ""}`}
+                              onClick={() => setEditPeriod(p)}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sync Trip Sheet Toggle */}
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.825rem", color: "var(--on-surface)", marginTop: "0.1rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={syncTripSheetSchedule}
+                    onChange={(e) => setSyncTripSheetSchedule(e.target.checked)}
+                    style={{ cursor: "pointer", accentColor: "var(--primary)" }}
+                  />
+                  <span>Automatically sync Departure Date & Reporting Time in Trip Sheet</span>
+                </label>
+
+                {/* Modal Footer Buttons */}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.75rem", borderTop: "1px solid var(--outline-variant)", paddingTop: "1rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditScheduleBooking(null)}
+                    className="btn-secondary"
+                    style={{ padding: "0.5rem 1.25rem" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSchedule}
+                    className="btn-primary"
+                    disabled={editScheduleSaving}
+                    style={{
+                      padding: "0.5rem 1.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem"
+                    }}
+                  >
+                    {editScheduleSaving ? (
+                      <div className="spinner-small"></div>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ================= DELETE BOOKING CONFIRMATION MODAL ================= */}
+      <AnimatePresence>
+        {deletingBooking && (
+          <div className="print-modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1100,
+            padding: "1rem"
+          }}>
+            <motion.div
+              className="card-container"
+              style={{
+                maxWidth: "460px",
+                width: "100%",
+                backgroundColor: "var(--surface)",
+                padding: "2rem",
+                position: "relative",
+                borderRadius: "var(--radius-lg, 1rem)",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+                boxShadow: "0 20px 50px rgba(0, 0, 0, 0.3)"
+              }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", marginBottom: "1.25rem" }}>
+                <div style={{
+                  backgroundColor: "rgba(239, 68, 68, 0.12)",
+                  color: "#ef4444",
+                  padding: "0.75rem",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h2 className="title-md" style={{ color: "var(--on-surface)", margin: 0, fontSize: "1.15rem" }}>
+                    Delete Booking?
+                  </h2>
+                  <p className="body-md" style={{ fontSize: "0.85rem", color: "var(--on-surface-variant)", marginTop: "0.4rem", lineHeight: 1.4 }}>
+                    Are you sure you want to permanently delete booking <strong style={{ color: "var(--on-surface)" }}>{deletingBooking.id}</strong> for <strong style={{ color: "var(--on-surface)" }}>{deletingBooking.full_name}</strong>?
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Callout */}
+              <div style={{
+                padding: "0.75rem 1rem",
+                backgroundColor: "rgba(239, 68, 68, 0.08)",
+                borderRadius: "var(--radius-sm)",
+                borderLeft: "3px solid #ef4444",
+                marginBottom: "1.5rem",
+                fontSize: "0.8rem",
+                color: "var(--on-surface)"
+              }}>
+                <strong>Warning:</strong> This action cannot be undone. Associated trip sheet details will also be permanently removed.
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setDeletingBooking(null)}
+                  className="btn-secondary"
+                  disabled={deleteLoading}
+                  style={{ padding: "0.55rem 1.25rem" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteBooking}
+                  disabled={deleteLoading}
+                  style={{
+                    padding: "0.55rem 1.5rem",
+                    backgroundColor: "#ef4444",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: "600",
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    transition: "background-color var(--transition-fast)"
+                  }}
+                >
+                  {deleteLoading ? (
+                    <div className="spinner-small" style={{ borderColor: "#ffffff", borderTopColor: "transparent" }}></div>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      <span>Delete Booking</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

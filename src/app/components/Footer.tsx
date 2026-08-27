@@ -4,6 +4,7 @@ import React from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import Link from "next/link";
+import BrandLogo from "./BrandLogo";
 
 const InstagramIcon = ({ size = 18 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -46,10 +47,7 @@ export default function Footer() {
       <div className="footer-container">
         <div className="footer-brand-col">
           <div className="footer-logo">
-            <div className="logo-icon-wrap" style={{ background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src="/logo_dark.png?v=3" alt="Maayan Trans Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-            </div>
-            <span className="logo-text">Maayan Trans</span>
+            <BrandLogo size={40} variant="footer" />
           </div>
           <p className="brand-description">
             Connecting cities, one ride at a time. Professional, reliable, and always on time.

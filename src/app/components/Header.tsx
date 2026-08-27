@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Phone, Moon, Sun } from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import { usePathname } from "next/navigation";
+import BrandLogo from "./BrandLogo";
 
 export default function Header() {
   const [theme, setTheme] = useState("light");
@@ -12,7 +13,8 @@ export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
 
-  const defaultMarquee = `✨ Welcome to Maayan Trans & Services! Premium Inter-City Travel, Airport Transfers, and Local Rides at Affordable Rates. ✨ | 📞 Call us at ${state.settings?.company?.phone || "+91 98942 21664"} to book your ride today! 📞 | ⭐ Safe, Vetted, and Professional Drivers for a Premium Experience. ⭐`;
+  // Separators between items are drawn in CSS, so the copy itself stays clean.
+  const defaultMarquee = `Premium inter-city travel, airport transfers, and local rides at honest rates | Call ${state.settings?.company?.phone || "+91 98942 21664"} to book your ride today | Safe, vetted, and professional drivers on every journey | Transparent fares — no hidden charges, no surge pricing`;
   const marqueeItems = (state.settings?.company?.marqueeText || defaultMarquee).split("|");
 
   // Load saved theme on mount
@@ -37,15 +39,8 @@ export default function Header() {
   return (
     <header className="sticky-header">
       <div className="header-container">
-        <Link href="/" className="logo-section" onClick={resetBooking}>
-          <div className="logo-icon" style={{ background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={theme === "dark" ? "/logo_dark.png?v=3" : "/logo_original.png?v=3"} alt="Maayan Trans Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-          </div>
-          <img
-            src={theme === "dark" ? "/brand_text_dark.png" : "/brand_text_light.png"}
-            alt="Maayan Trans"
-            className="brand-text-img"
-          />
+        <Link href="/" className="logo-section" onClick={resetBooking} aria-label="Maayan Trans — Home">
+          <BrandLogo size={42} priority />
         </Link>
 
         <div className="header-actions">

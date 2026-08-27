@@ -91,7 +91,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
     phone: "+91 98942 21664",
     email: "maayantransporters@gmail.com",
     address: "11-E, RKK Nagar, Singanallur, Coimbatore, Tamil Nadu, India",
-    marqueeText: "✨ Welcome to Maayan Trans & Services! Premium Inter-City Travel, Airport Transfers, and Local Rides at Affordable Rates. ✨ | 📞 Call us at +91 98942 21664 to book your ride today! 📞 | ⭐ Safe, Vetted, and Professional Drivers for a Premium Experience. ⭐",
+    // Separators between items are drawn in CSS, so the copy itself stays clean.
+    marqueeText: "Premium inter-city travel, airport transfers, and local rides at honest rates | Call +91 98942 21664 to book your ride today | Safe, vetted, and professional drivers on every journey | Transparent fares — no hidden charges, no surge pricing",
     notificationEmails: ["info.maayandrivecar@gmail.com"],
     minKmOneWay: 5,
     minKmRoundTrip: 5,

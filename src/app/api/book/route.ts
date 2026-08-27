@@ -323,26 +323,43 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
     console.warn("Failed to fetch recent bookings sequence from Supabase:", err);
   }
 
-  // 3. Check RPC if available without skipping select query
+  // 3. Authoritative source: reserve the next number straight from the database.
+  //    get_next_booking_sequence() is SECURITY DEFINER and backed by a Postgres
+  //    sequence, so it keeps working even though RLS blocks the anon key from
+  //    SELECTing bookings, and nextval() is atomic against concurrent bookings.
+  //    The local/tmp file scan above is only a best-effort fallback for when
+  //    this RPC is unavailable (e.g. migration not yet applied).
+  let dbReservedSequence: number | null = null;
   try {
     const { data: dbNextSeq, error: rpcError } = await supabase.rpc("get_next_booking_sequence");
-    if (!rpcError && dbNextSeq) {
-      const dbSeqNum = parseInt(dbNextSeq, 10);
-      if (!isNaN(dbSeqNum)) {
-        usedSequences.add(dbSeqNum);
-        if (dbSeqNum > maxSequence) {
-          maxSequence = dbSeqNum;
-        }
+    if (rpcError) {
+      console.warn(
+        "get_next_booking_sequence RPC unavailable, falling back to file-based sequence:",
+        rpcError.message || rpcError
+      );
+    } else if (dbNextSeq !== null && dbNextSeq !== undefined) {
+      const dbSeqNum = parseInt(String(dbNextSeq), 10);
+      if (!isNaN(dbSeqNum) && dbSeqNum > 0) {
+        dbReservedSequence = dbSeqNum;
       }
     }
   } catch (err) {
     console.warn("RPC check failed:", err);
   }
 
-  // Calculate next sequence ensuring it is strictly higher than maxSequence AND globalMaxSequence AND not in usedSequences
-  let currentSequence = Math.max(maxSequence + 1, globalMaxSequence + 1);
-  while (usedSequences.has(currentSequence)) {
-    currentSequence++;
+  // Calculate next sequence.
+  // Prefer the database-reserved number (already the value to use, not a value
+  // to add 1 to); otherwise derive it from the highest sequence seen in the
+  // local/tmp files, ensuring it is strictly higher than globalMaxSequence and
+  // not already used.
+  let currentSequence: number;
+  if (dbReservedSequence !== null) {
+    currentSequence = Math.max(dbReservedSequence, globalMaxSequence + 1);
+  } else {
+    currentSequence = Math.max(maxSequence + 1, globalMaxSequence + 1);
+    while (usedSequences.has(currentSequence)) {
+      currentSequence++;
+    }
   }
   globalMaxSequence = Math.max(globalMaxSequence, currentSequence);
   let finalBooking: any = null;

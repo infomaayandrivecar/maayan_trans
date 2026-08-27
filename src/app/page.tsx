@@ -251,7 +251,7 @@ export default function Home() {
             >
               <div className="booking-card card-container" style={{ boxShadow: 'var(--shadow-ambient)' }}>
                 {/* Tabs */}
-                <div className="booking-tabs" style={{ display: 'flex', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                <div className="booking-tabs" style={{ display: 'flex', overflowX: 'auto', whiteSpace: 'nowrap', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
                   <button
                     type="button"
                     className={`tab-btn ${formik.values.tripType === "One Way" ? "active" : ""}`}

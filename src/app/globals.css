@@ -12,6 +12,16 @@
   --on-primary: #ffffff;
   --on-primary-container: #111111;
 
+  /* Brand identity — royal blues sampled from the emblem so the wordmark and
+     the logo read as one lockup rather than two unrelated marks. */
+  --brand-blue: #0b3ba6;
+  --brand-blue-deep: #00073a;
+  --brand-blue-bright: #0d6fd6;
+  /* Halo behind the emblem. Invisible on light surfaces; on dark it lifts the
+     mark's near-black outer contour off the background. */
+  --brand-mark-halo: transparent;
+  --brand-mark-shadow: 0 2px 6px rgba(0, 8, 64, 0.18);
+
   --surface: #ffffff;
   /* Clean pure white */
   --surface-tint-5: rgba(17, 17, 17, 0.02);
@@ -53,7 +63,7 @@
   /* Fonts */
   --font-display: 'Manrope', sans-serif;
   --font-body: 'Inter', sans-serif;
-  --font-brand: var(--font-saira), 'Saira', sans-serif;
+  --font-brand: 'Montserrat', 'Manrope', sans-serif;
 
   /* Spacing Scale */
   --space-1: 0.25rem;
@@ -92,6 +102,18 @@
   --brand-gold: #ffb300;
   --on-primary: #111111;
   --on-primary-container: #ffb300;
+
+  /* The emblem's deep navy has almost no contrast against an OLED-black
+     surface, so on dark the wordmark shifts to a bright azure and the mark
+     gets a soft cool halo to restore its silhouette. */
+  --brand-blue: #7fb0ff;
+  --brand-blue-deep: #cfe0ff;
+  --brand-blue-bright: #9cc4ff;
+  --brand-mark-halo: radial-gradient(circle at 50% 50%,
+      rgba(120, 170, 255, 0.30) 0%,
+      rgba(120, 170, 255, 0.14) 45%,
+      rgba(120, 170, 255, 0) 72%);
+  --brand-mark-shadow: 0 0 14px rgba(125, 175, 255, 0.35);
 
   --surface: #0a0a0b;
   /* Deep OLED Black */
@@ -133,6 +155,21 @@
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 html,
@@ -155,6 +192,9 @@ body {
   background-image: none;
   display: flex;
   flex-direction: column;
+  /* Declared here, not on :root, because next/font defines --font-montserrat on
+     this element. */
+  --font-brand: var(--font-montserrat), 'Montserrat', 'Manrope', sans-serif;
 }
 
 /* Typography Scale */
@@ -536,7 +576,9 @@ p {
 /* Hero styles */
 .hero-section {
   min-height: calc(100vh - 96px);
-  padding: 3rem 1.5rem;
+  /* Gutters grow with the viewport so wide screens keep the content off the
+     edge instead of pinning it to a fixed 1.5rem. */
+  padding: 3rem clamp(1.25rem, 4vw, 3.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -627,34 +669,43 @@ p {
 }
 
 .map-marker-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   background-color: #ffb300;
   /* Premium Gold */
   border-radius: 50%;
-  box-shadow: 0 0 8px #ffb300;
+  box-shadow: 0 0 6px rgba(255, 179, 0, 0.9);
   z-index: 2;
 }
 
+/* An expanding ring rather than a filled blob — the markers stay legible where
+   cities cluster instead of merging into one orange smear. */
 .map-marker-pulse {
   position: absolute;
-  width: 20px;
-  height: 20px;
-  background-color: rgba(255, 179, 0, 0.35);
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255, 179, 0, 0.5);
   border-radius: 50%;
-  animation: map-marker-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation: map-marker-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
   z-index: 1;
 }
 
 @keyframes map-marker-ping {
   0% {
-    transform: scale(0.5);
-    opacity: 1;
+    transform: scale(0.4);
+    opacity: 0.9;
   }
 
   100% {
-    transform: scale(2.2);
+    transform: scale(2);
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-marker-pulse {
+    animation: none;
+    opacity: 0.35;
   }
 }
 
@@ -743,6 +794,10 @@ p {
   border: 1px solid var(--outline-variant);
   width: 100%;
   justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 [data-theme="dark"] .booking-tabs {
@@ -758,11 +813,31 @@ p {
   padding: 0.65rem 1.25rem;
   background: none;
   border: none;
+  outline: none;
   color: var(--on-surface-variant);
   cursor: pointer;
   border-radius: var(--radius-full);
   transition: all var(--transition-normal);
   text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-btn:focus,
+.tab-btn:focus-visible,
+.tab-btn:active {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-btn::selection {
+  background: transparent;
+}
+
+.tab-btn::-moz-selection {
+  background: transparent;
 }
 
 .tab-btn:hover {
@@ -807,7 +882,7 @@ p {
 /* Features Section */
 .features-section {
   background-color: var(--surface-container-low);
-  padding: 5rem 1.5rem;
+  padding: 5rem clamp(1.25rem, 4vw, 3.5rem);
   transition: background-color var(--transition-normal);
 }
 
@@ -969,7 +1044,7 @@ p {
 
 /* About Section */
 .about-section {
-  padding: 6rem 1.5rem;
+  padding: 6rem clamp(1.25rem, 4vw, 3.5rem);
 }
 
 .about-container {
@@ -1164,55 +1239,129 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Guarantees clearance between the wordmark and the action buttons on the
+     narrowest phones, where space-between alone lets them touch. */
+  gap: 1rem;
 }
 
 .logo-section {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
   cursor: pointer;
   text-decoration: none;
+  user-select: none;
 }
 
-.logo-icon {
-  display: flex;
+/* ---------------------------------------------------------------- */
+/* Brand lockup: emblem + wordmark. Used by the header, the footer,  */
+/* and anywhere else the identity appears, so every page matches.    */
+/* Sizing flows from --brand-mark-size, set inline by <BrandLogo>.   */
+/* ---------------------------------------------------------------- */
+.brand-lockup {
+  --brand-mark-size: 42px;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background-color: var(--primary-container);
-  border-radius: var(--radius-sm);
+  gap: 0.6em;
+  line-height: 1;
+  white-space: nowrap;
+  transition: transform var(--transition-fast);
 }
 
-.brand-text {
-  font-family: var(--font-brand);
-  font-weight: 900;
-  font-size: 1.3rem;
-  color: var(--on-surface);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 0.18rem;
+.logo-section:hover .brand-lockup {
+  transform: translateY(-1px);
 }
 
-.brand-text-img {
-  height: 22px;
-  width: auto;
+.brand-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  flex-shrink: 0;
+}
+
+/* The halo sits behind the mark and is transparent in light mode. */
+.brand-mark::before {
+  content: '';
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: var(--brand-mark-halo);
+  transition: background var(--transition-normal);
+  pointer-events: none;
+}
+
+.brand-mark-img {
+  position: relative;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
+  filter: drop-shadow(var(--brand-mark-shadow));
+  transition: filter var(--transition-normal), transform var(--transition-normal);
 }
 
-.brand-accent {
-  font-weight: 900;
-  color: #d97706;
-  /* Premium amber/gold for light theme */
+/* Dark surfaces swallow the emblem's midtones; a small lift restores the
+   vibrancy it has on white without washing out the gold stars. */
+[data-theme="dark"] .brand-mark-img,
+.brand-lockup-footer .brand-mark-img {
+  filter: drop-shadow(var(--brand-mark-shadow)) brightness(1.14) saturate(1.08);
+}
+
+.logo-section:hover .brand-mark-img {
+  transform: scale(1.05);
+}
+
+/* Bold, modern, luxury automotive brand wordmark */
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  font-family: var(--font-brand);
+  font-size: calc(var(--brand-mark-size) * 0.46);
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.brand-wordmark-accent {
+  margin-right: 0;
+}
+
+.brand-wordmark-primary {
+  color: var(--brand-blue);
+  font-weight: 800;
   letter-spacing: 0.03em;
+  transition: color var(--transition-normal);
 }
 
-[data-theme="dark"] .brand-accent {
+.brand-wordmark-accent {
+  color: var(--brand-gold);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transition: color var(--transition-normal);
+}
+
+/* The footer sits on a fixed near-black panel regardless of theme, so it
+   always needs the dark-surface treatment. */
+.brand-lockup-footer .brand-wordmark-primary {
+  color: #ffffff;
+}
+
+.brand-lockup-footer .brand-wordmark-accent {
   color: #ffb300;
-  /* Brilliant gold for dark theme */
+}
+
+.brand-lockup-footer .brand-mark::before {
+  background: radial-gradient(circle at 50% 50%,
+      rgba(120, 170, 255, 0.28) 0%,
+      rgba(120, 170, 255, 0.12) 45%,
+      rgba(120, 170, 255, 0) 72%);
+}
+
+.brand-lockup-footer .brand-mark-img {
+  --brand-mark-shadow: 0 0 12px rgba(125, 175, 255, 0.3);
 }
 
 .nav-links {
@@ -1323,6 +1472,10 @@ p {
 }
 
 @media (max-width: 768px) {
+  .sticky-header .brand-lockup {
+    --brand-mark-size: 36px;
+  }
+
   .nav-links {
     display: none;
     /* Hide navigation links on mobile */
@@ -1341,12 +1494,30 @@ p {
   }
 }
 
+@media (max-width: 480px) {
+  .sticky-header .brand-lockup {
+    --brand-mark-size: 32px;
+    gap: 0.5em;
+  }
+
+  /* Ease the size and tracking on narrow screens */
+  .sticky-header .brand-wordmark {
+    font-size: calc(var(--brand-mark-size) * 0.44);
+    letter-spacing: 0.025em;
+    gap: 0.28em;
+  }
+
+  .sticky-header .brand-wordmark-accent {
+    margin-right: 0;
+  }
+}
+
 /* From src/app/components/Footer.tsx */
 
 .site-footer {
   background-color: #111111;
   color: rgba(255, 255, 255, 0.7);
-  padding: 4rem 1.5rem 1.5rem 1.5rem;
+  padding: 4rem clamp(1.25rem, 4vw, 3.5rem) 1.5rem;
   margin-top: auto;
   font-family: var(--font-body);
 }
@@ -1371,25 +1542,6 @@ p {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-}
-
-.logo-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background-color: var(--primary);
-  border-radius: var(--radius-sm);
-}
-
-.logo-text {
-  font-family: var(--font-brand);
-  font-weight: 900;
-  font-size: 1.25rem;
-  color: #ffffff;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .brand-description {
@@ -1420,11 +1572,14 @@ p {
 .footer-links-list a {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
   transition: color var(--transition-fast);
 }
 
 .footer-links-list a:hover {
   color: #ffb300;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .footer-contact-list li {
@@ -1446,11 +1601,14 @@ p {
 
 .contact-link {
   color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
   transition: color var(--transition-fast);
 }
 
 .contact-link:hover {
   color: #ffb300;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .contact-address {
@@ -2626,38 +2784,76 @@ p {
 }
 
 /* Scrolling Welcome Banner Styles */
+/* A quiet information strip rather than a solid gold slab: the tint carries the
+   brand, the text carries the message, and the edges fade so the loop seam and
+   the abrupt clipping at the viewport edges are never visible. */
 .scrolling-banner {
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
+  position: relative;
+  background: linear-gradient(90deg,
+      rgba(255, 179, 0, 0.10) 0%,
+      rgba(255, 179, 0, 0.16) 50%,
+      rgba(255, 179, 0, 0.10) 100%);
+  color: #7c4a03;
   overflow: hidden;
   white-space: nowrap;
   font-family: var(--font-body);
-  font-size: 0.825rem;
+  font-size: 0.775rem;
   font-weight: 600;
-  height: 36px;
+  letter-spacing: 0.01em;
+  height: 34px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--outline-variant);
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(255, 179, 0, 0.22);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5rem, #000 calc(100% - 5rem), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 5rem, #000 calc(100% - 5rem), transparent 100%);
+}
+
+[data-theme="dark"] .scrolling-banner {
+  background: linear-gradient(90deg,
+      rgba(255, 179, 0, 0.05) 0%,
+      rgba(255, 179, 0, 0.10) 50%,
+      rgba(255, 179, 0, 0.05) 100%);
+  color: #ffc94d;
+  border-bottom-color: rgba(255, 179, 0, 0.16);
 }
 
 .scrolling-banner-track {
   display: flex;
   width: max-content;
-  animation: banner-scroll 45s linear infinite;
+  animation: banner-scroll 60s linear infinite;
 }
 
 .scrolling-banner-content {
   display: flex;
   align-items: center;
-  gap: 4rem;
-  padding-right: 4rem;
+  gap: 3rem;
+  padding-right: 3rem;
 }
 
 .scrolling-banner-content span {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Diamond separator between messages, so items read as a list without
+   depending on emoji in the copy. */
+.scrolling-banner-content span::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  margin-left: 3rem;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.45;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrolling-banner-track {
+    animation: none;
+  }
 }
 
 @keyframes banner-scroll {

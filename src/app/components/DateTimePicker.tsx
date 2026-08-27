@@ -8,24 +8,28 @@ import { usePickerPlacement } from "../hooks/usePickerPlacement";
 
 interface DateTimePickerProps {
   pickupDate: string; // YYYY-MM-DD
-  pickupTime: string; // HH:MM (24h)
+  pickupTime?: string; // HH:MM (24h)
   setPickupDate: (date: string) => void;
-  setPickupTime: (time: string) => void;
+  setPickupTime?: (time: string) => void;
   dateLabel?: string;
   timeLabel?: string;
   minDateTime?: string;
   showDate?: boolean;
+  showTime?: boolean;
+  allowPastDates?: boolean;
 }
 
 export default function DateTimePicker({
   pickupDate,
-  pickupTime,
+  pickupTime = "12:00",
   setPickupDate,
   setPickupTime,
   dateLabel,
   timeLabel,
   minDateTime,
   showDate = true,
+  showTime = true,
+  allowPastDates = false,
 }: DateTimePickerProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -57,6 +61,17 @@ export default function DateTimePicker({
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState(minValid.getMonth());
   const [currentYear, setCurrentYear] = useState(minValid.getFullYear());
+
+  // Sync calendar current month & year when date picker opens or pickupDate changes
+  useEffect(() => {
+    if (pickupDate) {
+      const [y, m] = pickupDate.split("-").map(Number);
+      if (y && m) {
+        setCurrentYear(y);
+        setCurrentMonth(m - 1);
+      }
+    }
+  }, [showDatePicker, pickupDate]);
 
   // Time Picker State (Temporary state until "Confirm" is clicked)
   const [tempHour, setTempHour] = useState<number>(12);
@@ -166,16 +181,16 @@ export default function DateTimePicker({
 
   // Auto-correct time/date if selection becomes past
   useEffect(() => {
-    if (pickupDate) {
-      const { date, time } = getNearestValidDateTime(pickupDate, pickupTime);
+    if (pickupDate && !allowPastDates) {
+      const { date, time } = getNearestValidDateTime(pickupDate, pickupTime || "12:00");
       if (date !== pickupDate) {
         setPickupDate(date);
       }
-      if (pickupTime && time !== pickupTime) {
+      if (pickupTime && setPickupTime && time !== pickupTime) {
         setPickupTime(time);
       }
     }
-  }, [pickupDate, pickupTime, showTimePicker, showDatePicker]);
+  }, [pickupDate, pickupTime, showTimePicker, showDatePicker, allowPastDates]);
 
   // Sync temp pickers state when opening Time Picker
   useEffect(() => {
@@ -327,7 +342,9 @@ export default function DateTimePicker({
 
   const handleConfirmTime = () => {
     const validated = getNearestValidTime(pickupDate, tempHour, tempMinute, tempPeriod);
-    setPickupTime(to24hString(validated.h12, validated.min, validated.period));
+    if (setPickupTime) {
+      setPickupTime(to24hString(validated.h12, validated.min, validated.period));
+    }
     setShowTimePicker(false);
   };
 
@@ -414,8 +431,8 @@ export default function DateTimePicker({
                   
                   const cellDate = new Date(currentYear, currentMonth, day);
                   const todayStart = new Date(minValid.getFullYear(), minValid.getMonth(), minValid.getDate());
-                  const isPast = cellDate.getTime() < todayStart.getTime() ||
-                    (cellDate.getTime() === todayStart.getTime() && (minValid.getHours() > 23 || (minValid.getHours() === 23 && minValid.getMinutes() >= 30)));
+                  const isPast = !allowPastDates && (cellDate.getTime() < todayStart.getTime() ||
+                    (cellDate.getTime() === todayStart.getTime() && (minValid.getHours() > 23 || (minValid.getHours() === 23 && minValid.getMinutes() >= 30))));
 
                   return (
                     <button
@@ -581,14 +598,14 @@ export default function DateTimePicker({
     <div
       className="datetime-picker-row"
       style={{
-        ...(showDate === false ? { gridTemplateColumns: "1fr" } : {}),
+        ...(showDate === false || showTime === false ? { gridTemplateColumns: "1fr" } : {}),
         zIndex: isOpen && !isMobile ? 500 : undefined,
       }}
     >
       {/* DATE PICKER FIELD */}
       {showDate !== false && (
         <div className="picker-wrapper" ref={datePickerRef}>
-          <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{dateLabel || "Pickup Date"}</label>
+          {dateLabel && <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{dateLabel}</label>}
           <div 
             className={`custom-picker-trigger ${showDatePicker ? "active" : ""}`}
             onClick={() => {
@@ -607,23 +624,25 @@ export default function DateTimePicker({
       )}
 
       {/* TIME PICKER FIELD */}
-      <div className="picker-wrapper" ref={timePickerRef}>
-        <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{timeLabel || "Pickup Time"}</label>
-        <div 
-          className={`custom-picker-trigger ${showTimePicker ? "active" : ""}`}
-          onClick={() => {
-            setShowTimePicker(!showTimePicker);
-            setShowDatePicker(false);
-          }}
-        >
-          <Clock size={18} className="trigger-icon" />
-          <div className="trigger-text-wrapper">
-            <span className="trigger-value">{formatDisplayTime(pickupTime)}</span>
+      {showTime !== false && setPickupTime && (
+        <div className="picker-wrapper" ref={timePickerRef}>
+          {timeLabel && <label className="input-label" style={{ display: 'block', marginBottom: '0.35rem' }}>{timeLabel}</label>}
+          <div 
+            className={`custom-picker-trigger ${showTimePicker ? "active" : ""}`}
+            onClick={() => {
+              setShowTimePicker(!showTimePicker);
+              setShowDatePicker(false);
+            }}
+          >
+            <Clock size={18} className="trigger-icon" />
+            <div className="trigger-text-wrapper">
+              <span className="trigger-value">{formatDisplayTime(pickupTime)}</span>
+            </div>
           </div>
-        </div>
 
-        {renderTimePickerPopover()}
-      </div>
+          {renderTimePickerPopover()}
+        </div>
+      )}
     </div>
   );
 }

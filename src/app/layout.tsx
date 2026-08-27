@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Inter, Saira } from "next/font/google";
+import { Manrope, Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { BookingProvider } from "./context/BookingContext";
 import BackgroundOrbs from "./components/BackgroundOrbs";
@@ -16,10 +16,11 @@ const inter = Inter({
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const saira = Saira({
-  variable: "--font-saira",
+// Premium brand wordmark typeface. Montserrat delivers a bold, confident, luxury mobility identity
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+  weight: ["600", "700", "800", "900"],
 });
 
 export const viewport: Viewport = {
@@ -28,6 +29,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  // Lets Next resolve the relative OG image path to an absolute URL, which
+  // social platforms require. Matches the base URL used by sitemap.ts/robots.ts.
+  metadataBase: new URL("https://maayantransports.com"),
   title: "Maayan Trans & Services | Premium Inter-City Cab",
   description: "Experience premium inter-city travel with Maayan Trans & Services. Safe, reliable, and comfortable journeys with certified drivers and transparent pricing.",
   keywords: "intercity taxi, Coimbatore taxi, premium cab service, long distance travel, outstation cabs, Maayan Trans, reliable taxi",
@@ -35,8 +39,8 @@ export const metadata: Metadata = {
   robots: "index, follow",
   icons: {
     icon: [
-      { url: "/icon.png", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.ico", sizes: "32x32" }
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" }
     ],
     apple: [
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
@@ -50,10 +54,10 @@ export const metadata: Metadata = {
     siteName: "Maayan Trans & Services",
     images: [
       {
-        url: "/icon.png",
+        url: "/og-mark.png",
         width: 512,
         height: 512,
-        alt: "Maayan Trans Logo",
+        alt: "Maayan Trans & Services logo",
       }
     ]
   }
@@ -66,7 +70,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${inter.variable} ${saira.variable}`}>
+      <body className={`${manrope.variable} ${inter.variable} ${montserrat.variable}`}>
         <BookingProvider>
           <BackgroundOrbs />
           {children}

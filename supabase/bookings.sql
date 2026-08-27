@@ -52,11 +52,16 @@ CREATE POLICY "Allow authenticated reads" ON public.bookings
   FOR SELECT TO authenticated
   USING (true);
 
--- Allow authenticated updates (for dashboard/admin users to update status)
+-- Allow authenticated updates (for dashboard/admin users to update status, dates, drivers)
 CREATE POLICY "Allow authenticated updates" ON public.bookings
   FOR UPDATE TO authenticated
   USING (true)
   WITH CHECK (true);
+
+-- Allow authenticated deletes (for dashboard/admin users to delete bookings)
+CREATE POLICY "Allow authenticated deletes" ON public.bookings
+  FOR DELETE TO authenticated
+  USING (true);
 
 
 -- SQL schema to create the trip_sheets table and set up Row Level Security (RLS)

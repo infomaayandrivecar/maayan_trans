@@ -5,6 +5,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 export interface Place {
   name: string;
   formattedAddress: string;
+  /**
+   * Administrative district from Google's structured address components.
+   * Carried separately because the display address often omits it, or names a
+   * different city in a road name — either of which corrupts the booking ID.
+   */
+  district?: string;
   lat: number;
   lng: number;
 }
@@ -636,6 +642,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       tripInstructions: passengerInfo.tripInstructions,
       tripType: state.tripType,
       pickupLocation: state.pickup ? `${state.pickup.name}, ${state.pickup.formattedAddress}` : "",
+      pickupDistrict: state.pickup?.district || "",
       dropoffLocation: state.dropoff ? `${state.dropoff.name}, ${state.dropoff.formattedAddress}` : "",
       pickupDate: state.pickupDate,
       pickupTime: state.pickupTime,

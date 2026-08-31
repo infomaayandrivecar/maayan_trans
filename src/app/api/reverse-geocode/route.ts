@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractDistrict } from "@/lib/district";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
             result: {
               name: mainName,
               formatted_address: topResult.formatted_address,
+              district: extractDistrict(topResult.address_components),
               lat: parseFloat(lat),
               lng: parseFloat(lng),
             }

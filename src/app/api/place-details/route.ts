@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractDistrict } from "@/lib/district";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address,name&key=${apiKey}`;
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address,name,address_components&key=${apiKey}`;
 
     const response = await fetch(url);
     const data = await response.json();
@@ -29,6 +30,10 @@ export async function GET(request: NextRequest) {
     const result = {
       name: data.result.name,
       formatted_address: data.result.formatted_address,
+      // The administrative district, read from Google's structured components
+      // rather than guessed from the address text. Text matching cannot tell a
+      // district from a road named after one ("Trichy Road" in Coimbatore).
+      district: extractDistrict(data.result.address_components),
       lat: data.result.geometry.location.lat,
       lng: data.result.geometry.location.lng,
     };

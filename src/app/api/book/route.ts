@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveDistrictCode } from "@/lib/district";
 
 interface RawBookingData {
   fullName: string;
@@ -12,6 +13,8 @@ interface RawBookingData {
   tripInstructions: string;
   tripType: "One Way" | "Round Trip" | "Outstation Trip";
   pickupLocation: string;
+  /** District from structured place data; drives the booking ID's district code. */
+  pickupDistrict?: string;
   dropoffLocation: string;
   pickupDate: string;
   pickupTime: string;
@@ -21,185 +24,11 @@ interface RawBookingData {
   totalFare: number;
 }
 
-// Helper to get 3-letter city code from location string
-function getCityCode(location: string): string {
-  const locLower = location.toLowerCase();
-  // Tamil Nadu
-  if (locLower.includes("chennai")) return "CHE";
-  if (locLower.includes("coimbatore")) return "CBE";
-  if (locLower.includes("madurai")) return "MDU";
-  if (locLower.includes("tiruchirappalli") || locLower.includes("trichy")) return "TRZ";
-  if (locLower.includes("salem")) return "SLM";
-  if (locLower.includes("erode")) return "ERD";
-  if (locLower.includes("tirunelveli")) return "TNV";
-  if (locLower.includes("tenkasi")) return "TSI";
-  if (locLower.includes("thoothukudi") || locLower.includes("tuticorin")) return "TCR";
-  if (locLower.includes("kanyakumari") || locLower.includes("nagercoil")) return "KKM";
-  if (locLower.includes("vellore")) return "VLR";
-  if (locLower.includes("ranipet")) return "RPT";
-  if (locLower.includes("tirupattur")) return "TPR";
-  if (locLower.includes("tiruvannamalai")) return "TVM";
-  if (locLower.includes("viluppuram")) return "VPM";
-  if (locLower.includes("kallakurichi")) return "KLR";
-  if (locLower.includes("cuddalore")) return "CDL";
-  if (locLower.includes("mayiladuthurai")) return "MYD";
-  if (locLower.includes("nagapattinam")) return "NGP";
-  if (locLower.includes("thanjavur")) return "TNJ";
-  if (locLower.includes("kumbakonam")) return "KUM";
-  if (locLower.includes("tiruvarur")) return "TVR";
-  if (locLower.includes("perambalur")) return "PBL";
-  if (locLower.includes("ariyalur")) return "ARL";
-  if (locLower.includes("namakkal")) return "NMK";
-  if (locLower.includes("karur")) return "KRR";
-  if (locLower.includes("dindigul")) return "DIG";
-  if (locLower.includes("theni")) return "THN";
-  if (locLower.includes("sivaganga")) return "SVG";
-  if (locLower.includes("karaikudi")) return "KKD";
-  if (locLower.includes("ramanathapuram")) return "RMD";
-  if (locLower.includes("virudhunagar")) return "VNR";
-  if (locLower.includes("srivilliputhur")) return "SVP";
-  if (locLower.includes("krishnagiri")) return "KGI";
-  if (locLower.includes("hosur")) return "HSR";
-  if (locLower.includes("dharmapuri")) return "DPI";
-  if (locLower.includes("nilgiris") || locLower.includes("ooty") || locLower.includes("udhagamandalam")) return "OTY";
-  if (locLower.includes("tiruvallur")) return "TVL";
-  if (locLower.includes("chengalpattu")) return "CGP";
-  if (locLower.includes("mahabalipuram")) return "MBM";
-  if (locLower.includes("pudukkottai")) return "PDK";
-
-  // Kerala
-  if (locLower.includes("thiruvananthapuram") || locLower.includes("trivandrum")) return "TRV";
-  if (locLower.includes("kovalam")) return "KVL";
-  if (locLower.includes("kollam")) return "KLM";
-  if (locLower.includes("pathanamthitta")) return "PTA";
-  if (locLower.includes("alappuzha") || locLower.includes("alleppey")) return "ALP";
-  if (locLower.includes("kottayam")) return "KTM";
-  if (locLower.includes("kumarakom")) return "KMR";
-  if (locLower.includes("idukki")) return "IDK";
-  if (locLower.includes("munnar")) return "MNR";
-  if (locLower.includes("thekkady")) return "TKD";
-  if (locLower.includes("ernakulam")) return "EKM";
-  if (locLower.includes("kochi") || locLower.includes("cochin")) return "COK";
-  if (locLower.includes("thrissur")) return "TSR";
-  if (locLower.includes("guruvayur")) return "GVR";
-  if (locLower.includes("palakkad")) return "PKD";
-  if (locLower.includes("malappuram")) return "MLP";
-  if (locLower.includes("kozhikode") || locLower.includes("calicut")) return "CCJ";
-  if (locLower.includes("wayanad")) return "WYD";
-  if (locLower.includes("sulthan bathery")) return "SBY";
-  if (locLower.includes("kannur")) return "CNN";
-  if (locLower.includes("thalassery")) return "TLS";
-  if (locLower.includes("kasaragod")) return "KSD";
-  if (locLower.includes("bekal")) return "BKL";
-  if (locLower.includes("bengaluru") || locLower.includes("bangalore")) return "BLR";
-  if (locLower.includes("mysuru") || locLower.includes("mysore")) return "MYS";
-  if (locLower.includes("mangaluru") || locLower.includes("mangalore")) return "IXE";
-  if (locLower.includes("hubballi") || locLower.includes("hubli")) return "HBL";
-  if (locLower.includes("belagavi") || locLower.includes("belgaum")) return "IXG";
-
-  if (locLower.includes("hyderabad")) return "HYD";
-  if (locLower.includes("warangal")) return "WGL";
-  if (locLower.includes("karimnagar")) return "KNR";
-  if (locLower.includes("nizamabad")) return "NZB";
-
-  if (locLower.includes("visakhapatnam") || locLower.includes("vizag")) return "VTZ";
-  if (locLower.includes("vijayawada")) return "VGA";
-  if (locLower.includes("tirupati")) return "TIR";
-  if (locLower.includes("guntur")) return "GNT";
-  if (locLower.includes("kakinada")) return "KKD";
-  if (locLower.includes("nellore")) return "NLR";
-
-  if (locLower.includes("mumbai") || locLower.includes("bombay")) return "BOM";
-  if (locLower.includes("pune")) return "PNQ";
-  if (locLower.includes("nagpur")) return "NAG";
-  if (locLower.includes("nashik")) return "ISK";
-  if (locLower.includes("aurangabad")) return "IXU";
-  if (locLower.includes("kolhapur")) return "KLH";
-
-  if (locLower.includes("delhi") || locLower.includes("new delhi")) return "DEL";
-  if (locLower.includes("gurugram") || locLower.includes("gurgaon")) return "GGN";
-  if (locLower.includes("faridabad")) return "FBD";
-  if (locLower.includes("noida")) return "NDA";
-  if (locLower.includes("ghaziabad")) return "GZB";
-
-  if (locLower.includes("jaipur")) return "JAI";
-  if (locLower.includes("jodhpur")) return "JDH";
-  if (locLower.includes("udaipur")) return "UDR";
-  if (locLower.includes("kota")) return "KOT";
-  if (locLower.includes("ajmer")) return "AJM";
-
-  if (locLower.includes("ahmedabad")) return "AMD";
-  if (locLower.includes("surat")) return "STV";
-  if (locLower.includes("vadodara") || locLower.includes("baroda")) return "BDQ";
-  if (locLower.includes("rajkot")) return "RAJ";
-  if (locLower.includes("gandhinagar")) return "GNR";
-
-  if (locLower.includes("kolkata") || locLower.includes("calcutta")) return "CCU";
-  if (locLower.includes("howrah")) return "HWH";
-  if (locLower.includes("durgapur")) return "DGP";
-  if (locLower.includes("siliguri")) return "IXB";
-
-  if (locLower.includes("bhubaneswar")) return "BBI";
-  if (locLower.includes("cuttack")) return "CTC";
-  if (locLower.includes("rourkela")) return "RRK";
-  if (locLower.includes("puri")) return "PURI";
-
-  if (locLower.includes("lucknow")) return "LKO";
-  if (locLower.includes("kanpur")) return "KNU";
-  if (locLower.includes("agra")) return "AGR";
-  if (locLower.includes("varanasi")) return "VNS";
-  if (locLower.includes("prayagraj") || locLower.includes("allahabad")) return "IXD";
-  if (locLower.includes("meerut")) return "MRT";
-
-  if (locLower.includes("patna")) return "PAT";
-  if (locLower.includes("gaya")) return "GAY";
-  if (locLower.includes("muzaffarpur")) return "MZR";
-
-  if (locLower.includes("ranchi")) return "IXR";
-  if (locLower.includes("jamshedpur")) return "JSR";
-  if (locLower.includes("dhanbad")) return "DHB";
-
-  if (locLower.includes("chandigarh")) return "IXC";
-  if (locLower.includes("amritsar")) return "ATQ";
-  if (locLower.includes("ludhiana")) return "LUH";
-  if (locLower.includes("jalandhar")) return "JUC";
-
-  if (locLower.includes("dehradun")) return "DED";
-  if (locLower.includes("haridwar")) return "HWD";
-  if (locLower.includes("rishikesh")) return "RSH";
-
-  if (locLower.includes("shimla")) return "SLV";
-  if (locLower.includes("manali")) return "MNL";
-  if (locLower.includes("dharamshala")) return "DHM";
-
-  if (locLower.includes("srinagar")) return "SXR";
-  if (locLower.includes("jammu")) return "IXJ";
-
-  if (locLower.includes("guwahati")) return "GAU";
-  if (locLower.includes("shillong")) return "SHL";
-  if (locLower.includes("agartala")) return "IXA";
-  if (locLower.includes("imphal")) return "IMF";
-  if (locLower.includes("aizawl")) return "AJL";
-  if (locLower.includes("itanagar")) return "ITA";
-  if (locLower.includes("gangtok")) return "PYG";
-  if (locLower.includes("kohima")) return "DMU";
-
-  if (locLower.includes("goa") || locLower.includes("panaji") || locLower.includes("panjim")) return "GOI";
-
-  if (locLower.includes("pondicherry") || locLower.includes("puducherry")) return "PNY";
-
-
-  // Fallback candidate extraction: take first/last non-state segment and grab 3 letters
-  const parts = location.split(",").map(p => p.trim());
-  const stateKeywords = ["india", "tamil nadu", "karnataka", "kerala", "andhra pradesh", "telangana", "maharashtra"];
-  const filtered = parts.filter(p => !stateKeywords.includes(p.toLowerCase()));
-  const cityCandidate = filtered[filtered.length - 1] || parts[0] || "GEN";
-
-  const cleanCandidate = cityCandidate.replace(/[^a-zA-Z]/g, "");
-  if (cleanCandidate.length >= 3) {
-    return cleanCandidate.substring(0, 3).toUpperCase();
-  }
-  return cleanCandidate.padEnd(3, "X").toUpperCase();
+// Resolves the 3-letter pickup district code used in the booking ID.
+// Prefers the district captured from Google's structured address components;
+// only falls back to reading the address text when that is unavailable.
+function getCityCode(location: string, district?: string): string {
+  return resolveDistrictCode(district, location);
 }
 
 // Helper to format date in DDMMYY and time in HHMM in Asia/Kolkata timezone
@@ -364,7 +193,7 @@ async function saveBookingToDatabase(bookingData: RawBookingData) {
   globalMaxSequence = Math.max(globalMaxSequence, currentSequence);
   let finalBooking: any = null;
 
-  const cityCode = getCityCode(bookingData.pickupLocation);
+  const cityCode = getCityCode(bookingData.pickupLocation, bookingData.pickupDistrict);
   const { formattedDate, formattedTime } = getBookingDateTimeStrings();
 
   // Retry loop: Attempt to insert into Supabase first.
@@ -559,6 +388,7 @@ export async function POST(request: NextRequest) {
       tripInstructions,
       tripType, // "One Way" | "Round Trip"
       pickupLocation,
+      pickupDistrict,
       dropoffLocation,
       pickupDate,
       pickupTime,
@@ -628,6 +458,7 @@ export async function POST(request: NextRequest) {
       tripInstructions: tripInstructions || "",
       tripType,
       pickupLocation,
+      pickupDistrict,
       dropoffLocation,
       pickupDate,
       pickupTime,

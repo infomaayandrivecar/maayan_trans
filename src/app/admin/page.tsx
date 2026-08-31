@@ -225,6 +225,29 @@ const subtractMinutes = (time: string, minutes: number): string => {
   return `${hh}:${mm}`;
 };
 
+// Moves a trip sheet's return date by the same number of days the departure
+// date moved, so a rescheduled trip keeps its original duration. Falls back to
+// the new departure date whenever the old dates cannot be parsed, or when the
+// shift would leave the return date before the departure date.
+const shiftDateInBy = (
+  oldDateOut: string | null | undefined,
+  newDateOut: string,
+  oldDateIn: string | null | undefined
+): string => {
+  if (!oldDateOut || !oldDateIn) return newDateOut;
+  const from = new Date(oldDateOut);
+  const to = new Date(newDateOut);
+  const end = new Date(oldDateIn);
+  if (isNaN(from.getTime()) || isNaN(to.getTime()) || isNaN(end.getTime())) return newDateOut;
+
+  const durationMs = end.getTime() - from.getTime();
+  if (durationMs < 0) return newDateOut;
+
+  const shifted = new Date(to.getTime() + durationMs);
+  if (isNaN(shifted.getTime())) return newDateOut;
+  return shifted.toISOString().split("T")[0];
+};
+
 // Formats a HH:MM 24-hour time string into a 12-hour AM/PM string
 const formatTimeTo12Hour = (time24: string): string => {
   if (!time24) return "";
@@ -565,13 +588,15 @@ export default function AdminPage() {
         setSession(null);
       } else if (data?.session) {
         setSession(data.session);
-      } else if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("maayan_admin_session");
-        if (saved) {
-          try {
-            setSession(JSON.parse(saved));
-          } catch (e) {}
+      } else {
+        // No valid Supabase session. Previously a leftover "maayan_admin_session"
+        // blob in localStorage was restored here, which made the dashboard look
+        // signed in while the Supabase client still had no token — every write
+        // then failed silently under RLS. Stay signed out instead.
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("maayan_admin_session");
         }
+        setSession(null);
       }
       setAuthLoading(false);
     }).catch(() => {
@@ -1011,49 +1036,101 @@ export default function AdminPage() {
       if (editPeriod === "AM" && editHour === 12) h24 = 0;
       const finalTime24 = `${String(h24).padStart(2, "0")}:${String(editMinute).padStart(2, "0")}`;
 
+      const newPickupDate = editPickupDate.trim();
+
       const updatedBooking: Booking = {
         ...editScheduleBooking,
-        pickup_date: editPickupDate.trim(),
+        pickup_date: newPickupDate,
         pickup_time: finalTime24,
       };
       const newStatus = evaluateBookingStatus(updatedBooking);
 
-      // 1. Update public.bookings table in Supabase
-      const { error: bookingError } = await supabase
+      // 1. Update public.bookings table in Supabase.
+      // .select() makes the affected rows observable: an RLS-blocked write
+      // returns no error but touches nothing, which previously looked like
+      // success and left the UI showing data the database never accepted.
+      const { data: updatedRows, error: bookingError } = await supabase
         .from("bookings")
         .update({
-          pickup_date: editPickupDate.trim(),
+          pickup_date: newPickupDate,
           pickup_time: finalTime24,
           status: newStatus,
         })
-        .eq("id", editScheduleBooking.id);
+        .eq("id", editScheduleBooking.id)
+        .select("id");
 
       if (bookingError) {
         throw new Error(bookingError.message || "Failed to update booking schedule");
       }
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          "The database did not accept the change (0 rows updated). Your admin session may have expired — sign out and sign back in, then try again."
+        );
+      }
 
-      // 2. Optionally sync trip sheets table if one exists for this booking
+      // 2. Sync the trip sheet, when one has been created for this booking.
+      //
+      // A trip sheet row only exists once someone has saved a trip sheet or
+      // notified the customer. When there is no row yet nothing needs syncing:
+      // the sheet is generated from the booking, which now holds the new
+      // schedule. When a row does exist every schedule-derived field has to
+      // move together, or the sheet ends up internally inconsistent.
+      let tripSheetSynced = false;
       if (syncTripSheetSchedule) {
-        try {
-          await supabase
+        const { data: existingSheet, error: sheetFetchError } = await supabase
+          .from("trip_sheets")
+          .select("date_out, date_in")
+          .eq("booking_id", editScheduleBooking.id)
+          .maybeSingle();
+
+        if (sheetFetchError) {
+          throw new Error("Could not read the trip sheet to sync it: " + sheetFetchError.message);
+        }
+
+        if (existingSheet) {
+          // Shift the return date by the same number of days so the trip keeps
+          // its original duration. Without this, moving the pickup forward
+          // leaves date_in behind date_out and the day count goes negative.
+          const shiftedDateIn = shiftDateInBy(
+            existingSheet.date_out,
+            newPickupDate,
+            existingSheet.date_in
+          );
+
+          const { data: syncedRows, error: sheetError } = await supabase
             .from("trip_sheets")
             .update({
-              date_out: editPickupDate.trim(),
+              date_out: newPickupDate,
+              date_in: shiftedDateIn,
               reporting_time: finalTime24,
+              // Kept 30 minutes ahead of reporting time, matching how this
+              // field is derived everywhere else in the trip sheet.
+              vehicle_start_time: subtractMinutes(finalTime24, 30),
             })
-            .eq("booking_id", editScheduleBooking.id);
-        } catch (tsErr) {
-          console.warn("Trip sheet schedule sync warning:", tsErr);
+            .eq("booking_id", editScheduleBooking.id)
+            .select("booking_id");
+
+          if (sheetError) {
+            throw new Error("Booking updated, but the trip sheet sync failed: " + sheetError.message);
+          }
+          if (!syncedRows || syncedRows.length === 0) {
+            throw new Error(
+              "Booking updated, but the trip sheet did not change (0 rows updated). Your admin session may have expired — sign out and sign back in, then try again."
+            );
+          }
+          tripSheetSynced = true;
         }
       }
 
-      // 3. Update React bookings state
+      // 3. Update React bookings state. Only runs once the database has
+      // confirmed the write above, so the dashboard can no longer show a
+      // schedule that was never actually saved.
       setBookings((prev) =>
         prev.map((b) =>
           b.id === editScheduleBooking.id
             ? {
                 ...b,
-                pickup_date: editPickupDate.trim(),
+                pickup_date: newPickupDate,
                 pickup_time: finalTime24,
                 status: newStatus,
               }
@@ -1061,20 +1138,39 @@ export default function AdminPage() {
         )
       );
 
-      // 4. Update tripSheetData state if currently open for this booking
+      // 4. Keep the open trip sheet in step with the change.
       if (tripSheetData && tripSheetData.booking_id === editScheduleBooking.id) {
         setTripSheetData((prev) =>
           prev
             ? {
                 ...prev,
-                date_out: editPickupDate.trim(),
+                date_out: newPickupDate,
+                date_in: shiftDateInBy(prev.date_out, newPickupDate, prev.date_in),
                 reporting_time: finalTime24,
+                vehicle_start_time: subtractMinutes(finalTime24, 30),
               }
             : null
         );
       }
 
-      showToast(`Pickup schedule for ${editScheduleBooking.id} updated successfully!`);
+      // 5. Refresh the booking snapshot the trip sheet screen derives values
+      // from, so reopening or saving it does not reintroduce the old schedule.
+      if (activeTripSheetBooking && activeTripSheetBooking.id === editScheduleBooking.id) {
+        setActiveTripSheetBooking((prev) =>
+          prev ? { ...prev, pickup_date: newPickupDate, pickup_time: finalTime24, status: newStatus } : prev
+        );
+      }
+      if (notifyBooking && notifyBooking.id === editScheduleBooking.id) {
+        setNotifyBooking((prev) =>
+          prev ? { ...prev, pickup_date: newPickupDate, pickup_time: finalTime24, status: newStatus } : prev
+        );
+      }
+
+      showToast(
+        syncTripSheetSchedule && tripSheetSynced
+          ? `Pickup schedule and trip sheet for ${editScheduleBooking.id} updated!`
+          : `Pickup schedule for ${editScheduleBooking.id} updated successfully!`
+      );
       setEditScheduleBooking(null);
     } catch (err: any) {
       alert("Error updating schedule: " + (err.message || err));

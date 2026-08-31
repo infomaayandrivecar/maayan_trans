@@ -116,6 +116,10 @@ export default function PlacesAutocomplete({
         onSelect({
           name: prediction.structured_formatting.main_text,
           formattedAddress: prediction.structured_formatting.secondary_text || data.result.formatted_address,
+          // secondary_text frequently drops the district (a Coimbatore school
+          // can read "Trichy Road, ... , Tamil Nadu"), so keep the structured
+          // district alongside it for the booking ID.
+          district: data.result.district || "",
           lat: data.result.lat,
           lng: data.result.lng,
         });
@@ -152,6 +156,7 @@ export default function PlacesAutocomplete({
             onSelect({
               name: data.result.name,
               formattedAddress: data.result.formatted_address,
+              district: data.result.district || "",
               lat: data.result.lat,
               lng: data.result.lng,
             });
